@@ -6,7 +6,7 @@ import '../../../../core/constants/colors.dart';
 import '../auth_provider.dart';
 import '../../domain/auth_state.dart';
 import '../../../shared/models/user_role.dart';
-import '../../../../core/services/maps_service.dart';
+import '../../../shared/widgets/city_autocomplete_field.dart';
 
 class RegisterPage extends ConsumerStatefulWidget {
   const RegisterPage({super.key});
@@ -20,10 +20,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  final _cityCtrl = TextEditingController();
+  String? _cityName;
   UserRole _role = UserRole.client;
-  List<String> _cities = [];
-  bool _loadingCities = false;
 
   @override
   void dispose() {
@@ -31,14 +29,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     _emailCtrl.dispose();
     _passCtrl.dispose();
     _phoneCtrl.dispose();
-    _cityCtrl.dispose();
     super.dispose();
-  }
-
-  Future<void> _searchCities(String q) async {
-    setState(() => _loadingCities = true);
-    _cities = await MapsService.autocompleteCity(q);
-    setState(() => _loadingCities = false);
   }
 
   @override
@@ -112,34 +103,13 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   validator: (v) => v!.isEmpty ? 'Requerido' : null,
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
-                  controller: _cityCtrl,
-                  decoration: InputDecoration(
-                    labelText: 'Ciudad/Zona',
-                    suffixIcon: _loadingCities
-                        ? const Padding(
-                            padding: EdgeInsets.all(8),
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : null,
-                  ),
-                  onChanged: _searchCities,
-                  validator: (v) => v!.isEmpty ? 'Requerido' : null,
+                // Zona/ciudad con autocompletado geolocalizado (Nominatim).
+                CityAutocompleteField(
+                  label: 'Ciudad/Zona',
+                  initialText: _cityName,
+                  onSelected: (place) => _cityName = place.displayName,
+                  onCleared: () => _cityName = null,
                 ),
-                if (_cities.isNotEmpty)
-                  SizedBox(
-                    height: 120,
-                    child: ListView.builder(
-                      itemCount: _cities.length,
-                      itemBuilder: (_, i) => ListTile(
-                        title: Text(_cities[i]),
-                        onTap: () => setState(() {
-                          _cityCtrl.text = _cities[i];
-                          _cities.clear();
-                        }),
-                      ),
-                    ),
-                  ),
                 if (_role == UserRole.worker) ...[
                   const SizedBox(height: 12),
                   const Text(
@@ -169,7 +139,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                                   password: _passCtrl.text,
                                   role: _role,
                                   phone: _phoneCtrl.text,
-                                  city: _cityCtrl.text,
+                                  city: _cityName,
                                 );
                           }
                         },

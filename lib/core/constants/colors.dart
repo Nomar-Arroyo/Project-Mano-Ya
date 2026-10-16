@@ -11,4 +11,10 @@ class ManoYaColors {
   static const Color surface = Colors.white;
   static const Color border = Color(0xFFE2E8F0);
   static const Color muted = Color(0xFF64748B);
+
+  // Paleta para el tema oscuro.
+  static const Color darkBackground = Color(0xFF0F172A);
+  static const Color darkSurface = Color(0xFF1E293B);
+  static const Color darkTextPrimary = Color(0xFFF1F5F9);
+  static const Color darkBorder = Color(0xFF334155);
 }

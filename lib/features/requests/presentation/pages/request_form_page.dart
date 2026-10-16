@@ -31,7 +31,7 @@ class _RequestFormPageState extends State<RequestFormPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Solicitar a ')),
+      appBar: AppBar(title: Text('Solicitar a ${widget.workerName}')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Form(

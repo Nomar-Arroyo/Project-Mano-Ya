@@ -30,7 +30,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(authStateProvider);
     ref.listen<AuthState>(authStateProvider, (_, s) {
-      if (s.isAuthenticated) context.go('/home');
+      if (!s.isAuthenticated) return;
+      // Si el usuario tiene 2FA activo pasa primero por la verificación.
+      context.go(s.twoFactorEnabled ? '/two-factor' : '/home');
     });
     return Scaffold(
       body: SafeArea(
@@ -83,7 +85,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             if (_formKey.currentState!.validate()) {
                               ref
                                   .read(authStateProvider.notifier)
-                                  .loginEmail(_emailCtrl.text, _passCtrl.text);
+                                  .loginEmail(
+                                    _emailCtrl.text,
+                                    _passCtrl.text,
+                                    role: _selectedRole,
+                                  );
                             }
                           },
                     child: state.loading

@@ -16,6 +16,10 @@ class Worker {
   final String? phone;
   final String? bio;
 
+  /// Coordenadas de la zona del trabajador (para calcular cercanía).
+  final double? latitude;
+  final double? longitude;
+
   const Worker({
     required this.id,
     required this.name,
@@ -31,6 +35,8 @@ class Worker {
     this.avatarUrl,
     this.phone,
     this.bio,
+    this.latitude,
+    this.longitude,
   });
 
   bool get isAvailable => status == WorkerStatus.available;
