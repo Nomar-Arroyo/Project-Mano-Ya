@@ -14,8 +14,23 @@ cobro con cuotas/hitos, confirmación de pago y generación de recibo en PDF.
 
 ---
 
+## Proyecto de 3er Trimestre (ITSU)
+
+Proyecto de fin de trimestre (ITSU) que se desarrolla y **se expone como una
+tesis**: abarca desde el planteamiento del problema y la arquitectura hasta la
+implementación, las pruebas y la defensa final ante el jurado.
+
+**Integrantes:**
+
+- **Nomar Arroyo** · nomar.arroyo.itsu@gmail.com
+- **Ana Anselmi** · anaanselmi.itsu@gmail.com
+- **Alan Mendoza** · alanmendoza.itsu@gmail.com
+
+---
+
 ## Tabla de contenido
 
+- [Proyecto de 3er Trimestre (ITSU)](#proyecto-de-3er-trimestre-itsu)
 - [Características](#-características)
 - [Stack tecnológico](#-tech-stack)
 - [Arquitectura del proyecto](#-arquitectura-del-proyecto)
