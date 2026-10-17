@@ -88,9 +88,9 @@ class _BrandPanel extends StatelessWidget {
           const _DecoCircle(bottom: -70, left: -50, size: 260, opacity: 0.08),
           const _DecoCircle(top: 130, left: -30, size: 120, opacity: 0.12),
           Padding(
-            padding: const EdgeInsets.all(AppSpacing.xl),
+            padding: EdgeInsets.all(compact ? AppSpacing.lg : AppSpacing.xl),
             child: compact
-                ? const _BrandHeader()
+                ? const _BrandHeader(compact: true)
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -119,30 +119,37 @@ class _BrandPanel extends StatelessWidget {
 
 /// Logo + nombre + eslogan.
 class _BrandHeader extends StatelessWidget {
-  const _BrandHeader();
+  final bool compact;
+
+  const _BrandHeader({this.compact = false});
 
   @override
   Widget build(BuildContext context) {
+    final logoSize = compact ? 48.0 : 60.0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          height: 60,
-          width: 60,
+          height: logoSize,
+          width: logoSize,
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(AppRadius.lg),
             border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
           ),
-          child: const Icon(Icons.handyman, color: Colors.white, size: 32),
+          child: Icon(
+            Icons.handyman,
+            color: Colors.white,
+            size: compact ? 26 : 32,
+          ),
         ),
-        const SizedBox(height: AppSpacing.md),
-        const Text(
+        SizedBox(height: compact ? AppSpacing.sm : AppSpacing.md),
+        Text(
           'Mano Ya',
           style: TextStyle(
             color: Colors.white,
-            fontSize: 30,
+            fontSize: compact ? 26 : 30,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.5,
           ),
@@ -152,7 +159,7 @@ class _BrandHeader extends StatelessWidget {
           'Tus Oficios a la Mano',
           style: TextStyle(
             color: Colors.white.withValues(alpha: 0.85),
-            fontSize: 15,
+            fontSize: compact ? 14 : 15,
           ),
         ),
       ],
