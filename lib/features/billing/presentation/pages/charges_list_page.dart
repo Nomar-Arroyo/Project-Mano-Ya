@@ -2,15 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/colors.dart';
+import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/utils/formatters.dart';
 import '../../../auth/presentation/auth_provider.dart';
 import '../../../shared/models/user_role.dart';
+import '../../../shared/widgets/async_state_views.dart';
 import '../../domain/charge.dart';
 import '../billing_provider.dart';
 import 'charge_detail_page.dart';
 import 'charge_form_page.dart';
+import '../widgets/charge_status_chip.dart';
 
-/// Lista de solicitudes de cobro. El trabajador puede crear nuevas; ambos
-/// roles pueden abrir el detalle para notificar o confirmar el pago.
+/// Lista de solicitudes de cobro/pagos. El trabajador puede crear nuevas;
+/// ambos roles pueden abrir el detalle para notificar o confirmar el pago.
 class ChargesListPage extends ConsumerWidget {
   const ChargesListPage({super.key});
 
@@ -32,22 +36,126 @@ class ChargesListPage extends ConsumerWidget {
             )
           : null,
       body: chargesAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) =>
-            const Center(child: Text('Error al cargar cobros')),
+        loading: () => const LoadingView(message: 'Cargando cobros...'),
+        error: (error, stackTrace) => ErrorView(
+          message: 'No se pudieron cargar los cobros',
+          onRetry: () => ref.invalidate(chargesListProvider),
+        ),
         data: (list) {
           if (list.isEmpty) {
-            return const Center(
-              child: Text('No hay cobros registrados todavía'),
+            return EmptyView(
+              icon: Icons.receipt_long_outlined,
+              title: 'Sin cobros todavía',
+              message: isWorker
+                  ? 'Crea tu primera solicitud con el botón "Nuevo cobro".'
+                  : 'Cuando te generen un cobro aparecerá aquí.',
             );
           }
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: list.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 12),
-            itemBuilder: (context, index) => _ChargeCard(charge: list[index]),
+          final total = list.fold<double>(0, (sum, c) => sum + c.total);
+          final pending = list.fold<double>(
+            0,
+            (sum, c) => sum + c.pendingAmount,
+          );
+
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  AppSpacing.md,
+                  AppSpacing.md,
+                  AppSpacing.sm,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _SummaryCard(
+                        label: isWorker ? 'Total facturado' : 'Total',
+                        value: Formatters.currency(total),
+                        icon: Icons.account_balance_wallet_outlined,
+                        color: ManoYaColors.primary,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: _SummaryCard(
+                        label: 'Por pagar',
+                        value: Formatters.currency(pending),
+                        icon: Icons.hourglass_bottom,
+                        color: ManoYaColors.warning,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md,
+                    AppSpacing.sm,
+                    AppSpacing.md,
+                    AppSpacing.xxl,
+                  ),
+                  itemCount: list.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: AppSpacing.md),
+                  itemBuilder: (context, index) =>
+                      _ChargeCard(charge: list[index]),
+                ),
+              ),
+            ],
           );
         },
+      ),
+    );
+  }
+}
+
+/// Tarjeta de resumen (total / por pagar).
+class _SummaryCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  const _SummaryCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: color.withValues(alpha: 0.20)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: AppSpacing.sm),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+          ),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 12, color: ManoYaColors.muted),
+          ),
+        ],
       ),
     );
   }
@@ -62,8 +170,12 @@ class _ChargeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      elevation: 0,
       clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        side: const BorderSide(color: ManoYaColors.border),
+      ),
       child: InkWell(
         onTap: () => Navigator.push(
           context,
@@ -72,100 +184,100 @@ class _ChargeCard extends StatelessWidget {
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(AppSpacing.md),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
-                      charge.concept,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                  CircleAvatar(
+                    backgroundColor: ManoYaColors.primary.withValues(
+                      alpha: 0.12,
+                    ),
+                    child: const Icon(
+                      Icons.receipt_long_outlined,
+                      color: ManoYaColors.primary,
+                      size: 20,
                     ),
                   ),
-                  _StatusChip(status: charge.status),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          charge.concept,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Cliente: ${charge.clientName}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: ManoYaColors.muted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  ChargeStatusChip(status: charge.status),
                 ],
               ),
-              const SizedBox(height: 6),
-              Text(
-                'Trabajador: ${charge.workerName}',
-                style: const TextStyle(fontSize: 12, color: ManoYaColors.muted),
-              ),
-              Text(
-                'Cliente: ${charge.clientName}',
-                style: const TextStyle(fontSize: 12, color: ManoYaColors.muted),
-              ),
-              const SizedBox(height: 10),
+              const SizedBox(height: AppSpacing.md),
               Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    '\$ ${charge.total.toStringAsFixed(2)}',
+                    Formatters.currency(charge.total),
                     style: const TextStyle(
                       fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: AppSpacing.sm),
                   Text(
-                    'Pagado: \$ ${charge.paidAmount.toStringAsFixed(2)}',
+                    'Pagado: ${Formatters.currency(charge.paidAmount)}',
                     style: const TextStyle(
                       fontSize: 12,
                       color: ManoYaColors.success,
                     ),
                   ),
+                  const Spacer(),
+                  if (charge.hasInstallments)
+                    Text(
+                      '${charge.installments.length} cuotas',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: ManoYaColors.muted,
+                      ),
+                    ),
                 ],
               ),
-              if (charge.hasInstallments)
-                const Padding(
-                  padding: EdgeInsets.only(top: 6),
-                  child: Text(
-                    'Pago en cuotas',
-                    style: TextStyle(fontSize: 11, color: ManoYaColors.muted),
+              const SizedBox(height: AppSpacing.sm),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+                child: LinearProgressIndicator(
+                  value: charge.total == 0
+                      ? 0
+                      : (charge.paidAmount / charge.total).clamp(0.0, 1.0),
+                  minHeight: 6,
+                  backgroundColor: ManoYaColors.border,
+                  valueColor: const AlwaysStoppedAnimation(
+                    ManoYaColors.success,
                   ),
                 ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                'Creado el ${Formatters.date(charge.createdAt)}',
+                style: const TextStyle(fontSize: 11, color: ManoYaColors.muted),
+              ),
             ],
           ),
         ),
       ),
     );
-  }
-}
-
-/// Chip de estado del cobro.
-class _StatusChip extends StatelessWidget {
-  final ChargeStatus status;
-
-  const _StatusChip({required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    final (color, label) = _presentation(status);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-
-  (Color, String) _presentation(ChargeStatus status) {
-    switch (status) {
-      case ChargeStatus.pending:
-        return (ManoYaColors.warning, 'Pendiente');
-      case ChargeStatus.clientNotified:
-        return (ManoYaColors.primary, 'Por confirmar');
-      case ChargeStatus.paid:
-        return (ManoYaColors.success, 'Pagado');
-    }
   }
 }

@@ -43,6 +43,9 @@ class Charge {
   final String concept;
   final String workerName;
   final String clientName;
+
+  /// Correo del cliente para enviarle el recibo/reporte de pago.
+  final String? clientEmail;
   final double total;
   final String bankInfo;
   final DateTime createdAt;
@@ -64,6 +67,7 @@ class Charge {
     required this.bankInfo,
     required this.createdAt,
     required this.status,
+    this.clientEmail,
     this.installments = const [],
     this.receiptPath,
     this.paidAt,
@@ -97,12 +101,14 @@ class Charge {
     List<Installment>? installments,
     String? receiptPath,
     DateTime? paidAt,
+    String? clientEmail,
   }) {
     return Charge(
       id: id,
       concept: concept,
       workerName: workerName,
       clientName: clientName,
+      clientEmail: clientEmail ?? this.clientEmail,
       total: total,
       bankInfo: bankInfo,
       createdAt: createdAt,
