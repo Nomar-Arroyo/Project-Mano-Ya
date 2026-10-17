@@ -1,6 +1,15 @@
 import '../domain/auth_state.dart';
 import '../../shared/models/user_role.dart';
 
+/// Error de autenticación (credenciales inválidas, cuenta inexistente, etc.).
+class AuthException implements Exception {
+  final String message;
+  const AuthException(this.message);
+
+  @override
+  String toString() => message;
+}
+
 class AuthRepository {
   // final GoogleSignIn _googleSignIn = GoogleSignIn();
   AuthState _state = const AuthState.unauthenticated();
@@ -14,6 +23,10 @@ class AuthRepository {
   }) async {
     // MOCK: simulacion de login
     await Future.delayed(const Duration(milliseconds: 600));
+    // Defensivo: con backend real aquí se validarían las credenciales.
+    if (email.trim().isEmpty || password.length < 6) {
+      throw const AuthException('Correo o contraseña incorrectos.');
+    }
     _state = AuthState.authenticated(
       userId: 'mock_user',
       email: email,

@@ -37,14 +37,22 @@ class AuthNotifier extends Notifier<AuthState> {
     required UserRole role,
   }) async {
     state = const AuthState.loading();
-    final twoFactor = await StorageService.getTwoFactorEnabled();
-    state = await repo.loginEmailPassword(
-      email,
-      password,
-      role: role,
-      twoFactorEnabled: twoFactor,
-    );
-    await _persist();
+    try {
+      final twoFactor = await StorageService.getTwoFactorEnabled();
+      state = await repo.loginEmailPassword(
+        email,
+        password,
+        role: role,
+        twoFactorEnabled: twoFactor,
+      );
+      await _persist();
+    } on AuthException catch (e) {
+      state = AuthState.failure(e.message);
+    } catch (_) {
+      state = const AuthState.failure(
+        'Ocurrió un error inesperado. Intenta de nuevo.',
+      );
+    }
   }
 
   Future<void> register({
@@ -56,25 +64,48 @@ class AuthNotifier extends Notifier<AuthState> {
     String? city,
   }) async {
     state = const AuthState.loading();
-    state = await repo.register(
-      name: name,
-      email: email,
-      password: password,
-      role: role,
-      phone: phone,
-      city: city,
-    );
-    await _persist();
+    try {
+      state = await repo.register(
+        name: name,
+        email: email,
+        password: password,
+        role: role,
+        phone: phone,
+        city: city,
+      );
+      await _persist();
+    } on AuthException catch (e) {
+      state = AuthState.failure(e.message);
+    } catch (_) {
+      state = const AuthState.failure(
+        'No se pudo crear la cuenta. Intenta de nuevo.',
+      );
+    }
   }
 
   Future<void> signInWithGoogle(UserRole role) async {
     state = const AuthState.loading();
-    state = await repo.signInWithGoogle(role: role);
-    final twoFactor = await StorageService.getTwoFactorEnabled();
-    if (twoFactor != state.twoFactorEnabled) {
-      state = await repo.setTwoFactor(twoFactor);
+    try {
+      state = await repo.signInWithGoogle(role: role);
+      final twoFactor = await StorageService.getTwoFactorEnabled();
+      if (twoFactor != state.twoFactorEnabled) {
+        state = await repo.setTwoFactor(twoFactor);
+      }
+      await _persist();
+    } on AuthException catch (e) {
+      state = AuthState.failure(e.message);
+    } catch (_) {
+      state = const AuthState.failure(
+        'No se pudo iniciar sesión con Google. Intenta de nuevo.',
+      );
     }
-    await _persist();
+  }
+
+  /// Limpia el mensaje de error actual (p. ej. al volver a escribir).
+  void clearError() {
+    if (state.errorMessage != null) {
+      state = state.copyWith();
+    }
   }
 
   // Actualiza los datos del perfil y refresca la sesión guardada.

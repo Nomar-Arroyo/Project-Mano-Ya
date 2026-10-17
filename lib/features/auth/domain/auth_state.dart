@@ -12,6 +12,9 @@ class AuthState {
   final bool twoFactorEnabled;
   final bool loading;
 
+  /// Mensaje de error del último intento fallido (null si no hay error).
+  final String? errorMessage;
+
   const AuthState({
     required this.isAuthenticated,
     this.userId,
@@ -23,10 +26,15 @@ class AuthState {
     this.avatarUrl,
     this.twoFactorEnabled = false,
     this.loading = false,
+    this.errorMessage,
   });
 
   const AuthState.unauthenticated() : this(isAuthenticated: false);
   const AuthState.loading() : this(isAuthenticated: false, loading: true);
+
+  /// Estado de error producido durante un intento de autenticación.
+  const AuthState.failure(String message)
+    : this(isAuthenticated: false, errorMessage: message);
 
   static AuthState authenticated({
     required String userId,

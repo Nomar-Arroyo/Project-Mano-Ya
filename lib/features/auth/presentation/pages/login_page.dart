@@ -3,12 +3,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/colors.dart';
-import '../auth_provider.dart';
-import '../../domain/auth_state.dart';
+import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/utils/validators.dart';
 import '../../../shared/models/user_role.dart';
+import '../../../shared/widgets/app_button.dart';
+import '../../../shared/widgets/app_text_field.dart';
+import '../../../shared/widgets/async_state_views.dart';
+import '../../../shared/widgets/or_divider.dart';
+import '../../domain/auth_state.dart';
+import '../auth_provider.dart';
+import '../widgets/auth_scaffold.dart';
+import '../widgets/role_selector.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
+
   @override
   ConsumerState<LoginPage> createState() => _LoginPageState();
 }
@@ -26,121 +35,133 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     super.dispose();
   }
 
+  void _submit() {
+    FocusScope.of(context).unfocus();
+    if (!_formKey.currentState!.validate()) return;
+    ref
+        .read(authStateProvider.notifier)
+        .loginEmail(
+          _emailCtrl.text.trim(),
+          _passCtrl.text,
+          role: _selectedRole,
+        );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(authStateProvider);
-    ref.listen<AuthState>(authStateProvider, (_, s) {
-      if (!s.isAuthenticated) return;
-      // Si el usuario tiene 2FA activo pasa primero por la verificación.
-      context.go(s.twoFactorEnabled ? '/two-factor' : '/home');
-    });
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text(
-                    'Mano Ya',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.bold,
-                      color: ManoYaColors.primary,
-                    ),
-                  ),
-                  const Text(
-                    'Tus Oficios a la Mano',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: ManoYaColors.muted),
-                  ),
-                  const SizedBox(height: 30),
-                  _roleSelector(),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _emailCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Correo electrónico',
-                    ),
-                    validator: (v) =>
-                        v == null || v.isEmpty ? 'Requerido' : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _passCtrl,
-                    obscureText: true,
-                    decoration: const InputDecoration(labelText: 'Contraseña'),
-                    validator: (v) =>
-                        v == null || v.isEmpty ? 'Requerido' : null,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: state.loading
-                        ? null
-                        : () {
-                            if (_formKey.currentState!.validate()) {
-                              ref
-                                  .read(authStateProvider.notifier)
-                                  .loginEmail(
-                                    _emailCtrl.text,
-                                    _passCtrl.text,
-                                    role: _selectedRole,
-                                  );
-                            }
-                          },
-                    child: state.loading
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text('Iniciar Sesión'),
-                  ),
-                  const SizedBox(height: 12),
-                  OutlinedButton(
-                    onPressed: state.loading
-                        ? null
-                        : () => ref
-                              .read(authStateProvider.notifier)
-                              .signInWithGoogle(_selectedRole),
-                    child: const Text('Continuar con Google'),
-                  ),
-                  const SizedBox(height: 16),
-                  TextButton(
-                    onPressed: () => context.push('/register'),
-                    child: const Text('¿No tienes cuenta? Regístrate'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+    final loading = state.loading;
 
-  Widget _roleSelector() {
-    return Row(
-      children: [
-        Expanded(
-          child: SegmentedButton<UserRole>(
-            segments: const [
-              ButtonSegment(
-                value: UserRole.client,
-                label: Text('Cliente'),
-                icon: Icon(Icons.person),
-              ),
-              ButtonSegment(
-                value: UserRole.worker,
-                label: Text('Trabajador'),
-                icon: Icon(Icons.handyman),
+    ref.listen<AuthState>(authStateProvider, (previous, next) {
+      final wasAuthenticated = previous?.isAuthenticated ?? false;
+      if (next.isAuthenticated && !wasAuthenticated) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sesión iniciada correctamente'),
+            backgroundColor: ManoYaColors.success,
+          ),
+        );
+        // Si el usuario tiene 2FA activo pasa primero por la verificación.
+        context.go(next.twoFactorEnabled ? '/two-factor' : '/home');
+      }
+    });
+
+    return AuthScaffold(
+      title: 'Bienvenido de nuevo',
+      subtitle: 'Inicia sesión en Mano Ya para continuar',
+      form: Form(
+        key: _formKey,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            RoleSelector(
+              value: _selectedRole,
+              enabled: !loading,
+              onChanged: (r) => setState(() => _selectedRole = r),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            AppTextField(
+              controller: _emailCtrl,
+              label: 'Correo electrónico',
+              hint: 'tucorreo@ejemplo.com',
+              prefixIcon: Icons.mail_outline,
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+              enabled: !loading,
+              autofillHints: const [AutofillHints.email],
+              validator: Validators.email,
+              onChanged: (_) =>
+                  ref.read(authStateProvider.notifier).clearError(),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            AppTextField(
+              controller: _passCtrl,
+              label: 'Contraseña',
+              prefixIcon: Icons.lock_outline,
+              obscure: true,
+              enabled: !loading,
+              textInputAction: TextInputAction.done,
+              autofillHints: const [AutofillHints.password],
+              validator: Validators.password,
+              onFieldSubmitted: (_) => _submit(),
+              onChanged: (_) =>
+                  ref.read(authStateProvider.notifier).clearError(),
+            ),
+            if (state.errorMessage != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              InlineMessage(
+                message: state.errorMessage!,
+                type: MessageType.error,
               ),
             ],
-            selected: {_selectedRole},
-            onSelectionChanged: (s) => setState(() => _selectedRole = s.first),
-          ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: loading
+                    ? null
+                    : () => ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Recuperación de contraseña disponible próximamente',
+                          ),
+                        ),
+                      ),
+                child: const Text('¿Olvidaste tu contraseña?'),
+              ),
+            ),
+            AppButton(
+              label: 'Iniciar sesión',
+              icon: Icons.login,
+              loading: loading,
+              onPressed: _submit,
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            const OrDivider(),
+            const SizedBox(height: AppSpacing.lg),
+            AppButton(
+              label: 'Continuar con Google',
+              icon: Icons.g_mobiledata,
+              variant: AppButtonVariant.outline,
+              onPressed: loading
+                  ? null
+                  : () => ref
+                        .read(authStateProvider.notifier)
+                        .signInWithGoogle(_selectedRole),
+            ),
+          ],
         ),
-      ],
+      ),
+      footer: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Text('¿No tienes cuenta?'),
+          TextButton(
+            onPressed: loading ? null : () => context.push('/register'),
+            child: const Text('Regístrate'),
+          ),
+        ],
+      ),
     );
   }
 }
