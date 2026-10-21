@@ -110,8 +110,11 @@ Cada módulo de la carpeta `features/` sigue una separación por capas:
 # 1. Instalar dependencias
 flutter pub get
 
-# 2. Ejecutar en modo desarrollo (modo mock, sin Supabase)
+# 2. Ejecutar en modo desarrollo sin Supabase (modo mock)
 flutter run
+
+# Ejecutar con la configuración local de Supabase (.env, no se sube a Git)
+.\tool\run_flutter_with_env.ps1 run
 
 # 3. Compilar APK de depuración
 flutter build apk --debug
@@ -123,23 +126,27 @@ flutter build web
 ## Configuración de Supabase
 
 La app funciona en **modo mock** cuando no se proporcionan credenciales. Para
-conectar el backend real, pasa las credenciales mediante `--dart-define`:
+usar Supabase, copia `.env.example` a `.env` y completa `SUPABASE_URL` y
+`SUPABASE_ANON_KEY` con la URL del proyecto y la clave pública `sb_publishable_`
+(o la clave pública heredada `anon`). Después ejecuta:
 
-```bash
-flutter run \
-  --dart-define=SUPABASE_URL=https://TU-PROYECTO.supabase.co \
-  --dart-define=SUPABASE_ANON_KEY=TU_ANON_KEY
+```powershell
+.\tool\run_flutter_with_env.ps1 run
 ```
 
-Las claves esperadas están documentadas en `.env.example`:
+El script pasa esos valores a Flutter como `--dart-define`; Flutter no carga
+archivos `.env` directamente. Para compilar, se puede usar `build` en lugar de
+`run` y agregar los argumentos de plataforma, por ejemplo:
 
-```
-SUPABASE_URL=
-SUPABASE_ANON_KEY=
+```powershell
+.\tool\run_flutter_with_env.ps1 build apk --release
 ```
 
-> Sin `SUPABASE_URL` y `SUPABASE_ANON_KEY`, `SupabaseService` no se inicializa y
-> la aplicación usa los repositorios de datos de ejemplo (mock).
+No pongas una clave `sb_secret_` ni `service_role` en Flutter; son credenciales
+privilegiadas. El registro, login y cierre de sesión por correo usan Supabase
+Auth y el rol/perfil básico se guarda en metadata del usuario. Los catálogos de
+trabajadores, trabajos y cobros siguen en modo mock hasta conectar el esquema
+de tablas correspondiente.
 
 ## Roles
 
@@ -148,14 +155,15 @@ SUPABASE_ANON_KEY=
 - **Trabajador**: gestiona su disponibilidad, recibe solicitudes, envía
   solicitudes de cobro (con plan de cuotas) y confirma pagos recibidos.
 
-## Estado del proyecto
+## Estado de integración
 
-El desarrollo se organizó en 4 fases (todas completadas sobre datos mock):
-
-1. **Paso 1** — Cliente de Supabase, temas claro/oscuro y splash screen.
-2. **Paso 2** — Autenticación y perfil (foto, 2FA, disponibilidad, cerrar sesión).
-3. **Paso 3** — Geolocalización, catálogo de oficios y WhatsApp.
-4. **Paso 4** — Cobro, cuotas/hitos, confirmación de pago y recibo en PDF.
+- **Conectado a Supabase Auth** cuando se inicia mediante
+  `.\tool\run_flutter_with_env.ps1 run`: registro, inicio/cierre de sesión,
+  restauración de sesión y metadata básica del perfil.
+- **Pendiente del esquema de tablas**: catálogo de trabajadores, trabajos y
+  cobros todavía usan datos mock. Para conectarlos se necesitan los nombres de
+  tablas/columnas y sus políticas RLS.
+- Google OAuth y MFA/2FA requieren configuración adicional en Supabase.
 
 ## Verificación
 

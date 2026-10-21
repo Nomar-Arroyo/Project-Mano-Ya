@@ -8,6 +8,7 @@ import 'core/services/storage_service.dart';
 import 'core/services/supabase_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_provider.dart';
+import 'features/auth/data/auth_repository.dart';
 import 'features/auth/domain/auth_state.dart';
 import 'features/auth/presentation/auth_provider.dart';
 import 'features/workers/presentation/availability_provider.dart';
@@ -21,10 +22,13 @@ Future<void> main() async {
 
   // Restaura el tema, la sesión y la disponibilidad guardadas.
   final initialMode = await ThemeModeNotifier.loadSaved();
-  final sessionMap = await StorageService.loadSessionMap();
-  final initialAuth = sessionMap != null
-      ? AuthState.fromJson(sessionMap)
-      : const AuthState.unauthenticated();
+  final initialAuth = SupabaseService.isConfigured
+      ? await AuthRepository().restoreSession()
+      : await StorageService.loadSessionMap().then(
+          (sessionMap) => sessionMap != null
+              ? AuthState.fromJson(sessionMap)
+              : const AuthState.unauthenticated(),
+        );
   final initialAvailability = await WorkerAvailabilityNotifier.loadSaved();
 
   runApp(

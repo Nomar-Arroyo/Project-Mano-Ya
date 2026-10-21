@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/colors.dart';
+import '../../../../core/services/supabase_service.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../auth/domain/auth_state.dart';
 import '../../../auth/presentation/auth_provider.dart';
@@ -35,6 +36,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final state = ref.watch(authStateProvider);
     final themeMode = ref.watch(themeModeProvider);
     final isWorker = state.role == UserRole.worker;
+    final isSupabaseConfigured = SupabaseService.isConfigured;
     final available = ref.watch(workerAvailabilityProvider);
     final surface = Theme.of(context).colorScheme.surface;
     final tileShape = RoundedRectangleBorder(
@@ -123,11 +125,14 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             const SizedBox(height: 8),
             SwitchListTile(
               value: state.twoFactorEnabled,
-              onChanged: (v) =>
-                  ref.read(authStateProvider.notifier).setTwoFactor(v),
+              onChanged: isSupabaseConfigured
+                  ? null
+                  : (v) => ref.read(authStateProvider.notifier).setTwoFactor(v),
               title: const Text('Verificación en 2 pasos (2FA)'),
               subtitle: Text(
-                state.twoFactorEnabled
+                isSupabaseConfigured
+                    ? 'Aún no está configurado en Supabase'
+                    : state.twoFactorEnabled
                     ? 'Se pedirá un código al iniciar sesión'
                     : 'Desactivado',
               ),
