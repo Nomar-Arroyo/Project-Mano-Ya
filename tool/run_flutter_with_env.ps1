@@ -35,6 +35,9 @@ if ([string]::IsNullOrWhiteSpace($supabaseUrl) -or
     [string]::IsNullOrWhiteSpace($supabaseKey)) {
   throw 'SUPABASE_URL y SUPABASE_ANON_KEY deben estar configurados en .env.'
 }
+if ($supabaseKey -match 'your_key_here|TU_ANON_KEY|TU_CLAVE') {
+  throw 'Reemplaza el valor de ejemplo de .env por la clave pública real del proyecto Supabase.'
+}
 if ($supabaseKey.StartsWith('sb_secret_') -or $supabaseKey -match 'service_role') {
   throw 'No uses sb_secret ni service_role en una aplicación Flutter. Usa la clave pública publishable/anon.'
 }

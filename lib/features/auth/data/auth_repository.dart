@@ -143,10 +143,10 @@ class AuthRepository {
     final client = SupabaseService.client;
     if (client != null) {
       final data = <String, dynamic>{
-        if (displayName != null) 'full_name': displayName,
-        if (phone != null) 'phone': phone,
-        if (city != null) 'city': city,
-        if (avatarUrl != null) 'avatar_url': avatarUrl,
+        'full_name': ?displayName,
+        'phone': ?phone,
+        'city': ?city,
+        'avatar_url': ?avatarUrl,
       };
       try {
         final response = await client.auth.updateUser(
