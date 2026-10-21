@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,11 +5,17 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/colors.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../../../core/theme/theme_provider.dart';
-import '../../../auth/domain/auth_state.dart';
 import '../../../auth/presentation/auth_provider.dart';
 import '../../../shared/models/user_role.dart';
+import '../../../shared/widgets/user_avatar.dart';
 import '../../../workers/presentation/availability_provider.dart';
+import '../profile_provider.dart';
 
+/// Pantalla principal del perfil de usuario.
+///
+/// Muestra los datos del usuario y las opciones que dependen del rol:
+/// - Trabajador: portafolio express, datos de cobro y disponibilidad.
+/// - Cliente: direcciones guardadas, favoritos e historial de servicios.
 class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({super.key});
 
@@ -20,6 +24,7 @@ class ProfilePage extends ConsumerStatefulWidget {
 }
 
 class _ProfilePageState extends ConsumerState<ProfilePage> {
+  /// Etiqueta legible del rol del usuario.
   String _roleLabel(UserRole? role) {
     switch (role) {
       case UserRole.worker:
@@ -59,46 +64,84 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                _avatar(state),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Hola, ${state.displayName ?? 'Invitado'}',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
-                        ),
+            // --- Encabezado con los datos del usuario ---
+            Card(
+              color: surface,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    UserAvatar(
+                      imageUrl: state.avatarUrl,
+                      name: state.displayName,
+                      radius: 32,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Hola, ${state.displayName ?? 'Invitado'}',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              Chip(
+                                label: Text(_roleLabel(state.role)),
+                                labelStyle: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.white,
+                                ),
+                                backgroundColor: isWorker
+                                    ? ManoYaColors.secondary
+                                    : ManoYaColors.primary,
+                                visualDensity: VisualDensity.compact,
+                              ),
+                              Chip(
+                                label: Text(
+                                  state.city?.isNotEmpty == true
+                                      ? state.city!
+                                      : 'Ciudad sin definir',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-                      Text(
-                        'Rol: ${_roleLabel(state.role)} | '
-                        'Ciudad: ${state.city?.isNotEmpty == true ? state.city : 'No definida'}',
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
             const SizedBox(height: 24),
+
+            // --- Opciones del rol trabajador ---
             if (isWorker) ...[
               const Text(
-                'Disponibilidad (Trabajador)',
+                'Mi perfil de trabajador',
                 style: TextStyle(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 8),
+              const _BioCard(),
+              const SizedBox(height: 10),
+              const _PortfolioTile(),
+              const SizedBox(height: 10),
+              const _PayoutTile(),
+              const SizedBox(height: 10),
               SwitchListTile(
                 value: available,
                 onChanged: (v) =>
                     ref.read(workerAvailabilityProvider.notifier).set(v),
-                title: Text(
-                  available
-                      ? 'Disponible para trabajar'
-                      : 'En descanso / Ocupado',
-                ),
+                title: const Text('Disponible para trabajar'),
                 subtitle: Text(
                   available
                       ? 'Badge verde en catálogo'
@@ -107,17 +150,23 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 tileColor: surface,
                 shape: tileShape,
               ),
+              const SizedBox(height: 24),
             ] else ...[
+              // --- Opciones del rol cliente ---
               const Text(
-                'Perfil de Cliente',
+                'Mi perfil de cliente',
                 style: TextStyle(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Puedes buscar y solicitar presupuestos desde el catálogo.',
-              ),
+              const _AddressesTile(),
+              const SizedBox(height: 10),
+              const _FavoritesTile(),
+              const SizedBox(height: 10),
+              const _HistoryTile(),
+              const SizedBox(height: 24),
             ],
-            const SizedBox(height: 24),
+
+            // --- Opciones comunes ---
             const Text(
               'Seguridad',
               style: TextStyle(fontWeight: FontWeight.w600),
@@ -196,20 +245,177 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       ),
     );
   }
+}
 
-  Widget _avatar(AuthState state) {
-    final path = state.avatarUrl;
-    if (path != null && path.isNotEmpty && File(path).existsSync()) {
-      return CircleAvatar(radius: 32, backgroundImage: FileImage(File(path)));
-    }
-    final name = state.displayName;
-    return CircleAvatar(
-      radius: 32,
-      child: Text(
-        name != null && name.isNotEmpty
-            ? name.substring(0, 1).toUpperCase()
-            : '?',
-        style: const TextStyle(fontSize: 24),
+/// Tarjeta que muestra la bio del trabajador.
+class _BioCard extends ConsumerWidget {
+  const _BioCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref.watch(workerProfileProvider);
+    final surface = Theme.of(context).colorScheme.surface;
+
+    return Card(
+      color: surface,
+      margin: EdgeInsets.zero,
+      child: ListTile(
+        leading: const Icon(Icons.badge_outlined),
+        title: const Text('Mi presentación'),
+        subtitle: Text(
+          profile.maybeWhen(
+            data: (data) => data.bio.isEmpty
+                ? 'Cuenta tu experiencia para generar confianza.'
+                : data.bio,
+            orElse: () => 'Cargando...',
+          ),
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.push('/profile/edit'),
+      ),
+    );
+  }
+}
+
+/// Acceso al portafolio express del trabajador.
+class _PortfolioTile extends ConsumerWidget {
+  const _PortfolioTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final portfolio = ref.watch(portfolioProvider);
+    final surface = Theme.of(context).colorScheme.surface;
+
+    return Card(
+      color: surface,
+      margin: EdgeInsets.zero,
+      child: ListTile(
+        leading: const Icon(Icons.photo_library_outlined),
+        title: const Text('Portafolio de trabajos'),
+        subtitle: Text(
+          portfolio.maybeWhen(
+            data: (items) => items.isEmpty
+                ? 'Agrega entre 3 y 5 fotos de tus trabajos'
+                : '${items.length} de 5 fotos cargadas',
+            orElse: () => 'Cargando...',
+          ),
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.push('/profile/portfolio'),
+      ),
+    );
+  }
+}
+
+/// Acceso a los datos financieros de cobro del trabajador.
+class _PayoutTile extends ConsumerWidget {
+  const _PayoutTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref.watch(workerProfileProvider);
+    final surface = Theme.of(context).colorScheme.surface;
+
+    return Card(
+      color: surface,
+      margin: EdgeInsets.zero,
+      child: ListTile(
+        leading: const Icon(Icons.payments_outlined),
+        title: const Text('Mis datos de cobro'),
+        subtitle: Text(
+          profile.maybeWhen(
+            data: (data) => data.payout.isConfigured
+                ? '${data.payout.method} configurado'
+                : 'Configura tu método de pago',
+            orElse: () => 'Cargando...',
+          ),
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.push('/profile/payout'),
+      ),
+    );
+  }
+}
+
+/// Acceso a las direcciones guardadas del cliente.
+class _AddressesTile extends ConsumerWidget {
+  const _AddressesTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final addresses = ref.watch(savedAddressesProvider);
+    final surface = Theme.of(context).colorScheme.surface;
+
+    return Card(
+      color: surface,
+      margin: EdgeInsets.zero,
+      child: ListTile(
+        leading: const Icon(Icons.home_work_outlined),
+        title: const Text('Mis direcciones guardadas'),
+        subtitle: Text(
+          addresses.maybeWhen(
+            data: (items) => items.isEmpty
+                ? 'Guarda Casa, Oficina u otras zonas'
+                : '${items.length} direcciones guardadas',
+            orElse: () => 'Cargando...',
+          ),
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.push('/profile/addresses'),
+      ),
+    );
+  }
+}
+
+/// Acceso a los contratistas favoritos del cliente.
+class _FavoritesTile extends ConsumerWidget {
+  const _FavoritesTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final favorites = ref.watch(favoriteWorkerIdsProvider);
+    final surface = Theme.of(context).colorScheme.surface;
+
+    return Card(
+      color: surface,
+      margin: EdgeInsets.zero,
+      child: ListTile(
+        leading: const Icon(Icons.favorite_border),
+        title: const Text('Mis favoritos'),
+        subtitle: Text(
+          favorites.maybeWhen(
+            data: (items) => items.isEmpty
+                ? 'Guarda a los trabajadores que prefieras'
+                : '${items.length} trabajadores guardados',
+            orElse: () => 'Cargando...',
+          ),
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.push('/profile/favorites'),
+      ),
+    );
+  }
+}
+
+/// Acceso al historial de servicios del cliente.
+class _HistoryTile extends ConsumerWidget {
+  const _HistoryTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final surface = Theme.of(context).colorScheme.surface;
+
+    return Card(
+      color: surface,
+      margin: EdgeInsets.zero,
+      child: ListTile(
+        leading: const Icon(Icons.history),
+        title: const Text('Historial de servicios'),
+        subtitle: const Text('Consulta tus servicios y comprobantes de pago'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.push('/profile/history'),
       ),
     );
   }

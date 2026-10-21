@@ -49,7 +49,22 @@ if (-not (Get-Command flutter -ErrorAction SilentlyContinue)) {
   throw 'No se encontró Flutter en PATH. Agrega flutter\bin a PATH y vuelve a intentarlo.'
 }
 
-& flutter $Command @FlutterArgs `
-  "--dart-define=SUPABASE_URL=$supabaseUrl" `
+# Las credenciales de Google son opcionales: sin ellas el acceso con Google
+# queda en modo simulado, pero el resto de la app funciona igual.
+$googleClientId = $values['GOOGLE_CLIENT_ID']
+$googleServerClientId = $values['GOOGLE_SERVER_CLIENT_ID']
+
+$defines = @(
+  "--dart-define=SUPABASE_URL=$supabaseUrl"
   "--dart-define=SUPABASE_ANON_KEY=$supabaseKey"
+)
+
+if (-not [string]::IsNullOrWhiteSpace($googleClientId)) {
+  $defines += "--dart-define=GOOGLE_CLIENT_ID=$googleClientId"
+}
+if (-not [string]::IsNullOrWhiteSpace($googleServerClientId)) {
+  $defines += "--dart-define=GOOGLE_SERVER_CLIENT_ID=$googleServerClientId"
+}
+
+& flutter $Command @FlutterArgs @defines
 exit $LASTEXITCODE

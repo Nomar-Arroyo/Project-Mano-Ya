@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/colors.dart';
 import '../../../../core/services/whatsapp_service.dart';
 import '../../../auth/presentation/auth_provider.dart';
+import '../../../profile/presentation/profile_provider.dart';
 import '../../../requests/presentation/pages/request_form_page.dart';
+import '../../../shared/models/user_role.dart';
 import '../../domain/worker.dart';
 import '../workers_provider.dart';
 
@@ -18,9 +20,38 @@ class WorkerDetailPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncWorker = ref.watch(workerByIdProvider(workerId));
+    final role = ref.watch(authStateProvider).role;
+    final favorites = ref.watch(favoriteWorkerIdsProvider);
+    final isFavorite = favorites.maybeWhen(
+      data: (ids) => ids.contains(workerId),
+      orElse: () => false,
+    );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Perfil del trabajador')),
+      appBar: AppBar(
+        title: const Text('Perfil del trabajador'),
+        actions: [
+          // Solo el rol cliente puede guardar contratistas favoritos.
+          if (role == UserRole.client)
+            IconButton(
+              icon: Icon(isFavorite ? Icons.favorite : Icons.favorite_border),
+              color: isFavorite ? ManoYaColors.danger : null,
+              tooltip: isFavorite
+                  ? 'Quitar de favoritos'
+                  : 'Guardar en favoritos',
+              onPressed: () async {
+                final controller = ref.read(profileControllerProvider.notifier);
+                if (isFavorite) {
+                  await controller.removeFavorite(workerId);
+                } else {
+                  await controller.addFavorite(workerId);
+                }
+                ref.invalidate(favoriteWorkerIdsProvider);
+                ref.invalidate(favoriteWorkersProvider);
+              },
+            ),
+        ],
+      ),
       body: asyncWorker.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, stackTrace) =>

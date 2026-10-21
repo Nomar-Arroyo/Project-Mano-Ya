@@ -46,6 +46,11 @@ implementación, las pruebas y la defensa final ante el jurado.
 - **Autenticación y perfiles**: registro/login con Email y Google, selección
   obligatoria de rol (`Cliente` / `Trabajador`), foto de perfil, edición de
   datos y **Verificación en 2 Pasos (2FA)**.
+- **Perfil avanzado por rol**:
+  - *Trabajador*: presentación (bio), **portafolio express de 3 a 5 fotos**,
+    configuración de **método de pago/cuenta de cobro** y disponibilidad.
+  - *Cliente*: **direcciones/zonas guardadas**, **contratistas favoritos** e
+    **historial de servicios con comprobantes de pago**.
 - **Tema claro/oscuro** con detección del tema del sistema y toggle manual,
   junto con una **splash screen** de bienvenida.
 - **Catálogo de oficios** con las 6 categorías principales, búsqueda por
@@ -58,6 +63,8 @@ implementación, las pruebas y la defensa final ante el jurado.
   **plan de cuotas/hitos** (pago único, 2, 4 o quincenal) con tabla de estado
   (`Pagada` / `Pendiente`), confirmación de pago y **recibo en PDF** con el
   sello *"TRABAJO PAGADO / GARANTIZADO"*.
+- **Imágenes en la nube**: las fotos de perfil y del portafolio se suben a los
+  buckets públicos `avatars` y `portfolios` de Supabase Storage.
 
 ## Stack tecnológico
 
@@ -76,22 +83,27 @@ implementación, las pruebas y la defensa final ante el jurado.
 ```
 lib/
 ├── core/                     # Infraestructura compartida
-│   ├── config/               # Configuración (Supabase vía dart-define)
+│   ├── config/               # Configuración (Supabase y Google vía dart-define)
 │   ├── constants/            # Paleta de colores
 │   ├── routes/               # Rutas de la app (go_router)
 │   ├── services/             # Servicios: Supabase, Storage, PDF, WhatsApp,
 │   │                         #   Maps (Nominatim), notificaciones
-│   └── theme/                # Temas claro/oscuro y su persistencia
+│   ├── theme/                # Temas claro/oscuro y su persistencia
+│   └── utils/                # Utilidades (formato, imágenes locales web-safe)
 ├── features/
 │   ├── auth/                 # Autenticación (dominio, datos y UI)
 │   ├── billing/              # Cobros, cuotas, confirmación de pago y recibo
 │   ├── home/                 # Contenedor con la navegación inferior
-│   ├── profile/              # Perfil de usuario y edición
+│   ├── profile/              # Perfil por rol: portafolio, cobro, direcciones,
+│   │                         #   favoritos, historial y edición de datos
 │   ├── requests/             # Solicitud de presupuesto
 │   ├── shared/               # Modelos y widgets compartidos
 │   ├── splash/               # Pantalla de bienvenida
 │   └── workers/              # Catálogo, detalle y trabajadores
-└── main.dart                 # Punto de entrada
+├── main.dart                 # Punto de entrada
+supabase/
+├── migrations/               # Esquema SQL (tablas, RLS, triggers) y semilla
+└── README.md                 # Instrucciones para aplicar el esquema
 ```
 
 Cada módulo de la carpeta `features/` sigue una separación por capas:
@@ -143,27 +155,62 @@ archivos `.env` directamente. Para compilar, se puede usar `build` en lugar de
 ```
 
 No pongas una clave `sb_secret_` ni `service_role` en Flutter; son credenciales
-privilegiadas. El registro, login y cierre de sesión por correo usan Supabase
-Auth y el rol/perfil básico se guarda en metadata del usuario. Los catálogos de
-trabajadores, trabajos y cobros siguen en modo mock hasta conectar el esquema
-de tablas correspondiente.
+privilegiadas.
+
+### Inicio de sesión con Google (OAuth)
+
+En el mismo `.env` se agregaron dos variables opcionales:
+
+| Variable | Uso |
+| --- | --- |
+| `GOOGLE_CLIENT_ID` | Client id de la app web/iOS (Google Cloud Console). |
+| `GOOGLE_SERVER_CLIENT_ID` | Client id de tipo *web* (Android lo exige para generar el `id_token`). |
+
+La app obtiene el `id_token` de Google y lo valida en Supabase con
+`signInWithIdToken`; el **rol es obligatorio** y se guarda en los metadatos del
+usuario. Sin estas credenciales el botón de Google funciona en modo simulado.
+
+### Esquema de base de datos
+
+El esquema completo (tablas, RLS, triggers y buckets de Storage) está en
+`supabase/migrations/`. Las instrucciones para aplicarlo están en
+`supabase/README.md`:
+
+```bash
+supabase link --project-ref buigphvixacedrcpursh
+supabase db push
+```
+
+Mientras el esquema no esté aplicado, los módulos de trabajos, cobros y
+catálogo siguen usando datos mock, pero el perfil extendido (portafolio, datos
+de cobro, direcciones y favoritos) funciona con ambos modos.
 
 ## Roles
 
 - **Cliente**: busca trabajadores, filtra por oficio/zona, contacta por WhatsApp
-  o solicita presupuesto, notifica pagos.
-- **Trabajador**: gestiona su disponibilidad, recibe solicitudes, envía
-  solicitudes de cobro (con plan de cuotas) y confirma pagos recibidos.
+  o solicita presupuesto, guarda direcciones y favoritos, notifica pagos y
+  consulta su historial de servicios con comprobantes.
+- **Trabajador**: gestiona su disponibilidad, publica su bio y portafolio
+  express, configura su método de cobro, recibe solicitudes, envía solicitudes
+  de cobro (con plan de cuotas) y confirma pagos recibidos.
 
 ## Estado de integración
 
 - **Conectado a Supabase Auth** cuando se inicia mediante
   `.\tool\run_flutter_with_env.ps1 run`: registro, inicio/cierre de sesión,
   restauración de sesión y metadata básica del perfil.
-- **Pendiente del esquema de tablas**: catálogo de trabajadores, trabajos y
-  cobros todavía usan datos mock. Para conectarlos se necesitan los nombres de
-  tablas/columnas y sus políticas RLS.
-- Google OAuth y MFA/2FA requieren configuración adicional en Supabase.
+- **Google OAuth implementado**: el flujo real (`google_sign_in` +
+  `signInWithIdToken`) ya está en el código; solo faltan los client ids de
+  Google Cloud en el `.env` para activarlo.
+- **Perfil extendido conectado a Supabase**: `profiles`, `portfolio_items`,
+  `saved_addresses` y `favorites` se leen y escriben contra el backend cuando
+  las tablas existen, con respaldo en memoria (modo mock) si no están.
+- **Imágenes en Supabase Storage**: avatar y portafolio se suben a los buckets
+  `avatars` y `portfolios`.
+- **Esquema de base de datos listo** en `supabase/migrations/`: falta aplicarlo
+  en el proyecto `buigphvixacedrcpursh` para que el catálogo, los trabajos y
+  los cobros dejen de usar datos mock.
+- MFA/2FA requiere configuración adicional en Supabase.
 
 ## Verificación
 

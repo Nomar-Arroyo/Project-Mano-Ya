@@ -15,7 +15,24 @@ class AppConfig {
     defaultValue: '',
   );
 
+  // Credenciales de Google (OAuth) inyectadas en tiempo de compilación.
+  // - GOOGLE_CLIENT_ID: client id de la app web/iOS (Google Cloud Console).
+  // - GOOGLE_SERVER_CLIENT_ID: client id de tipo "web" (Android exige el
+  //   server client id para obtener el id_token que valida Supabase).
+  static const String googleClientId = String.fromEnvironment(
+    'GOOGLE_CLIENT_ID',
+    defaultValue: '',
+  );
+  static const String googleServerClientId = String.fromEnvironment(
+    'GOOGLE_SERVER_CLIENT_ID',
+    defaultValue: '',
+  );
+
   // Mientras no existan credenciales reales la app opera en modo mock.
   static bool get hasSupabaseCredentials =>
       supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
+
+  /// Indica si hay credenciales de Google para el inicio de sesión con OAuth.
+  static bool get hasGoogleCredentials =>
+      googleClientId.isNotEmpty || googleServerClientId.isNotEmpty;
 }

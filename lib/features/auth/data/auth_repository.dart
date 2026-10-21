@@ -1,5 +1,7 @@
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 
+import '../../../core/config/app_config.dart';
 import '../../../core/services/supabase_service.dart';
 import '../domain/auth_state.dart';
 import '../../shared/models/user_role.dart';
@@ -115,22 +117,85 @@ class AuthRepository {
     return _state;
   }
 
+  /// Inicia sesión con Google.
+  ///
+  /// Cuando Supabase y las credenciales de Google están configurados se hace
+  /// el flujo real: se obtiene el `id_token` de Google y Supabase lo valida
+  /// para crear la sesión. El rol siempre es obligatorio: se guarda en los
+  /// metadatos del usuario para que la app sepa si es cliente o trabajador.
   Future<AuthState> signInWithGoogle({required UserRole role}) async {
-    if (SupabaseService.isConfigured) {
+    final client = SupabaseService.client;
+    if (client == null) {
+      // MOCK de Google Sign-In (no requiere credenciales reales por ahora)
+      await Future.delayed(const Duration(milliseconds: 700));
+      _state = AuthState.authenticated(
+        userId: 'mock_google',
+        email: 'usuario.mock@gmail.com',
+        displayName: 'Usuario Mock',
+        role: role,
+      );
+      return _state;
+    }
+
+    if (!AppConfig.hasGoogleCredentials) {
       throw const AuthException(
-        'El acceso con Google aún no está configurado en Supabase.',
+        'Faltan las credenciales de Google (GOOGLE_CLIENT_ID y '
+        'GOOGLE_SERVER_CLIENT_ID) en el archivo .env.',
       );
     }
 
-    // MOCK de Google Sign-In (no requiere credenciales reales por ahora)
-    await Future.delayed(const Duration(milliseconds: 700));
-    _state = AuthState.authenticated(
-      userId: 'mock_google',
-      email: 'usuario.mock@gmail.com',
-      displayName: 'Usuario Mock',
-      role: role,
-    );
-    return _state;
+    try {
+      await GoogleSignIn.instance.initialize(
+        clientId: AppConfig.googleClientId.isEmpty
+            ? null
+            : AppConfig.googleClientId,
+        serverClientId: AppConfig.googleServerClientId.isEmpty
+            ? null
+            : AppConfig.googleServerClientId,
+      );
+
+      final account = await GoogleSignIn.instance.authenticate(
+        scopeHint: const ['email', 'profile'],
+      );
+
+      final idToken = account.authentication.idToken;
+      if (idToken == null || idToken.isEmpty) {
+        throw const AuthException(
+          'Google no devolvió un token de sesión. Revisa la configuración '
+          'del cliente web en Google Cloud.',
+        );
+      }
+
+      final response = await client.auth.signInWithIdToken(
+        provider: supabase.OAuthProvider.google,
+        idToken: idToken,
+      );
+
+      final user = response.user;
+      if (user == null) {
+        throw const AuthException('Supabase no devolvió un usuario válido.');
+      }
+
+      // El rol y el nombre se guardan en los metadatos del usuario para que
+      // la app los use en las pantallas de perfil y panel.
+      final updated = await client.auth.updateUser(
+        supabase.UserAttributes(
+          data: {
+            'full_name': account.displayName ?? user.userMetadata?['full_name'],
+            'role': role.name,
+          },
+        ),
+      );
+
+      _state = _stateFromUser(updated.user ?? user, fallbackRole: role);
+      return _state;
+    } on supabase.AuthException catch (error) {
+      throw AuthException(error.message);
+    } on AuthException {
+      rethrow;
+    } catch (error) {
+      throw AuthException('No se pudo iniciar sesión con Google: $error');
+    }
   }
 
   // Actualiza los datos editables del perfil.
