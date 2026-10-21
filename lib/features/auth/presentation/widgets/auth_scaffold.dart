@@ -138,10 +138,13 @@ class _BrandHeader extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppRadius.lg),
             border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
           ),
-          child: Icon(
-            Icons.handyman,
-            color: Colors.white,
-            size: compact ? 26 : 32,
+          // Logotipo oficial de la marca (no se usan íconos genéricos).
+          padding: EdgeInsets.all(compact ? 6 : 8),
+          child: Image.asset(
+            'assets/icons/logo_oficial.png',
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+            semanticLabel: 'Mano Ya',
           ),
         ),
         SizedBox(height: compact ? AppSpacing.sm : AppSpacing.md),
