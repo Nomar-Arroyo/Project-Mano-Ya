@@ -19,8 +19,7 @@ La app las lee en `lib/core/config/app_config.dart`.
 
 | Variable | Publica | Uso |
 | --- | --- | --- |
-| `SUPABASE_URL` | Si | URL del proyecto: `https://waxypsqomsljcljdqwra.supabase.co` |
-| `SUPABASE_ANON_KEY` | Si | Clave publica `sb_publishable_...` o la clave `anon` heredada |
+| `SUPABASE_URL` | Si | URL del proyecto: `https://waxypsqomsljcljdqwra.supabase.co` || `SUPABASE_ANON_KEY` | Si | Clave publica `sb_publishable_...` o la clave `anon` heredada |
 | `GOOGLE_CLIENT_ID` | Si | Client id de la app web/iOS (Google Cloud Console) |
 | `GOOGLE_SERVER_CLIENT_ID` | Si | Client id de tipo *web* que Android usa para el `id_token` |
 | `WEB_APP_URL` | Si | URL publica de la app web (se usa en los enlaces de los correos) |
@@ -66,8 +65,14 @@ a cualquier hosting.
 ## Opcion A · GitHub Pages (la mas simple)
 
 El repositorio ya esta en <https://github.com/Nomar-Arroyo/Project-Mano-Ya>
-y el workflow `.github/workflows/deploy-web.yml` (creado para este proyecto)
-compila y publica automaticamente.
+y el workflow de despliegue esta listo en `tool/github-actions/deploy-web.yml`.
+
+> **Antes de activarlo**: el token de acceso personal que se usa para subir
+> los cambios no tiene el permiso `workflow`, y GitHub rechaza cualquier
+> `push` que toque `.github/workflows/`. Por eso el archivo esta en
+> `tool/github-actions/`. Las dos formas de activarlo (crear un PAT con
+> permiso `workflow` o publicar a mano) estan explicadas en
+> `.github/workflows/README.md`.
 
 ### 1. Crear los secretos del repositorio
 
@@ -374,7 +379,7 @@ supabase db push
 
 | Hosting | Coste | URL de ejemplo | Archivos del repo |
 | --- | --- | --- | --- |
-| GitHub Pages | Gratis | `Nomar-Arroyo.github.io/Project-Mano-Ya/` | `.github/workflows/deploy-web.yml` |
+| GitHub Pages | Gratis | `Nomar-Arroyo.github.io/Project-Mano-Ya/` | `tool/github-actions/deploy-web.yml` |
 | Cloudflare Pages | Gratis | `tu-sitio.pages.dev` | (configuracion en el panel) |
 | Netlify | Gratis | `tu-sitio.netlify.app` | `netlify.toml` |
 | Firebase Hosting | Gratis (Spark) | `tu-proyecto.web.app` | `firebase.json` |
