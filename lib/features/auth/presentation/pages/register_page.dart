@@ -14,6 +14,7 @@ import '../../../shared/widgets/or_divider.dart';
 import '../../domain/auth_state.dart';
 import '../auth_provider.dart';
 import '../widgets/auth_scaffold.dart';
+import '../widgets/google_sign_in_button.dart';
 import '../widgets/role_selector.dart';
 
 class RegisterPage extends ConsumerStatefulWidget {
@@ -127,7 +128,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             AppTextField(
               controller: _phoneCtrl,
               label: 'Teléfono',
-              hint: '+57 300 000 0000',
+              hint: '+58 412 000 0000',
               prefixIcon: Icons.phone_outlined,
               keyboardType: TextInputType.phone,
               textInputAction: TextInputAction.next,
@@ -165,17 +166,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             const SizedBox(height: AppSpacing.lg),
             const OrDivider(),
             const SizedBox(height: AppSpacing.lg),
-            AppButton(
-              label: 'Registrarme con Google',
-              icon: Icons.g_mobiledata,
-              variant: AppButtonVariant.outline,
-              loading: false,
-              onPressed: state.loading
-                  ? null
-                  : () => ref
-                        .read(authStateProvider.notifier)
-                        .signInWithGoogle(_role),
-            ),
+            GoogleSignInButton(role: _role, label: 'Registrarme con Google'),
           ],
         ),
       ),

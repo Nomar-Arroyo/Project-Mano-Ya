@@ -149,7 +149,8 @@ class BillingRepository {
         clientName: 'Laura Gómez',
         clientEmail: 'laura.gomez@example.com',
         total: 1200,
-        bankInfo: 'Bancolombia · Ahorros ****1234\nPago móvil: 3001112233',
+        bankInfo:
+            'Banco de Venezuela · Ahorros ****1234\nPago móvil: 0412-1112233',
         createdAt: now.subtract(const Duration(days: 20)),
         status: ChargeStatus.clientNotified,
         installments: [
@@ -188,7 +189,7 @@ class BillingRepository {
         clientName: 'Mario Díaz',
         clientEmail: 'mario.diaz@example.com',
         total: 350,
-        bankInfo: 'Nequi: 3003334455',
+        bankInfo: 'Pago móvil: 0412-3334455',
         createdAt: now.subtract(const Duration(days: 2)),
         status: ChargeStatus.pending,
         installments: [

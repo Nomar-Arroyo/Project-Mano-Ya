@@ -77,6 +77,37 @@ class JobsController {
     await _repo.rate(id, rating: rating, review: review);
     _ref.read(jobsRevisionProvider.notifier).bump();
   }
+
+  /// Crea una solicitud de servicio y refresca las listas del panel.
+  Future<Job> createRequest({
+    required String title,
+    required String category,
+    required String description,
+    required double price,
+    required DateTime scheduledAt,
+    required String address,
+    String? workerId,
+    String? workerName,
+    String? workerPhone,
+    String? clientId,
+    String? clientName,
+  }) async {
+    final job = await _repo.createRequest(
+      title: title,
+      category: category,
+      description: description,
+      price: price,
+      scheduledAt: scheduledAt,
+      address: address,
+      workerId: workerId,
+      workerName: workerName,
+      workerPhone: workerPhone,
+      clientId: clientId,
+      clientName: clientName,
+    );
+    _ref.read(jobsRevisionProvider.notifier).bump();
+    return job;
+  }
 }
 
 final jobsControllerProvider = Provider<JobsController>(

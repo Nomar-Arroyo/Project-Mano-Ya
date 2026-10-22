@@ -13,6 +13,7 @@ import '../../../shared/widgets/or_divider.dart';
 import '../../domain/auth_state.dart';
 import '../auth_provider.dart';
 import '../widgets/auth_scaffold.dart';
+import '../widgets/google_sign_in_button.dart';
 import '../widgets/role_selector.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
@@ -139,16 +140,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             const SizedBox(height: AppSpacing.lg),
             const OrDivider(),
             const SizedBox(height: AppSpacing.lg),
-            AppButton(
-              label: 'Continuar con Google',
-              icon: Icons.g_mobiledata,
-              variant: AppButtonVariant.outline,
-              onPressed: loading
-                  ? null
-                  : () => ref
-                        .read(authStateProvider.notifier)
-                        .signInWithGoogle(_selectedRole),
-            ),
+            GoogleSignInButton(role: _selectedRole),
           ],
         ),
       ),

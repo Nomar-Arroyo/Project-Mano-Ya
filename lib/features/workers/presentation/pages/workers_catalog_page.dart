@@ -124,8 +124,11 @@ class WorkersCatalogPage extends ConsumerWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            RequestFormPage(workerId: worker.id, workerName: worker.name),
+        builder: (_) => RequestFormPage(
+          workerId: worker.id,
+          workerName: worker.name,
+          workerCategory: worker.category,
+        ),
       ),
     );
   }

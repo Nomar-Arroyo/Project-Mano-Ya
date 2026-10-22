@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/colors.dart';
-import '../../../../core/services/supabase_service.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../auth/presentation/auth_provider.dart';
 import '../../../shared/models/user_role.dart';
@@ -36,12 +35,40 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     }
   }
 
+  /// Activa o desactiva la verificación en dos pasos.
+  ///
+  /// Al activar se genera el QR y el secreto: el usuario debe escanearlo y
+  /// confirmar con el primer código para que el factor quede verificado.
+  Future<void> _toggleTwoFactor(BuildContext context, bool enabled) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(authStateProvider.notifier).setTwoFactor(enabled);
+      if (!context.mounted) return;
+      if (enabled) {
+        context.push('/two-factor');
+      } else {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Verificación en 2 pasos desactivada'),
+            backgroundColor: ManoYaColors.success,
+          ),
+        );
+      }
+    } catch (error) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('No se pudo actualizar la verificación: $error'),
+          backgroundColor: ManoYaColors.danger,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(authStateProvider);
     final themeMode = ref.watch(themeModeProvider);
     final isWorker = state.role == UserRole.worker;
-    final isSupabaseConfigured = SupabaseService.isConfigured;
     final available = ref.watch(workerAvailabilityProvider);
     final surface = Theme.of(context).colorScheme.surface;
     final tileShape = RoundedRectangleBorder(
@@ -163,6 +190,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               const _FavoritesTile(),
               const SizedBox(height: 10),
               const _HistoryTile(),
+              const SizedBox(height: 10),
+              const _ReportsTile(),
               const SizedBox(height: 24),
             ],
 
@@ -174,14 +203,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             const SizedBox(height: 8),
             SwitchListTile(
               value: state.twoFactorEnabled,
-              onChanged: isSupabaseConfigured
-                  ? null
-                  : (v) => ref.read(authStateProvider.notifier).setTwoFactor(v),
+              onChanged: (v) => _toggleTwoFactor(context, v),
               title: const Text('Verificación en 2 pasos (2FA)'),
               subtitle: Text(
-                isSupabaseConfigured
-                    ? 'Aún no está configurado en Supabase'
-                    : state.twoFactorEnabled
+                state.twoFactorEnabled
                     ? 'Se pedirá un código al iniciar sesión'
                     : 'Desactivado',
               ),
@@ -416,6 +441,28 @@ class _HistoryTile extends ConsumerWidget {
         subtitle: const Text('Consulta tus servicios y comprobantes de pago'),
         trailing: const Icon(Icons.chevron_right),
         onTap: () => context.push('/profile/history'),
+      ),
+    );
+  }
+}
+
+/// Acceso a los reportes enviados por el usuario.
+class _ReportsTile extends ConsumerWidget {
+  const _ReportsTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final surface = Theme.of(context).colorScheme.surface;
+
+    return Card(
+      color: surface,
+      margin: EdgeInsets.zero,
+      child: ListTile(
+        leading: const Icon(Icons.support_agent),
+        title: const Text('Mis reportes'),
+        subtitle: const Text('Consulta el estado de los reportes enviados'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.push('/reports'),
       ),
     );
   }

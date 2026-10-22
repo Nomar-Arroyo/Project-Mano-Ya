@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 import '../../../core/config/app_config.dart';
 import '../../../core/services/supabase_service.dart';
 import '../domain/auth_state.dart';
+import '../domain/mfa_enrollment.dart';
 import '../../shared/models/user_role.dart';
 
 /// Error de autenticación (credenciales inválidas, cuenta inexistente, etc.).
@@ -20,10 +21,20 @@ class AuthRepository {
   AuthState _state = const AuthState.unauthenticated();
   AuthState get state => _state;
 
+  // Evita inicializar dos veces el SDK de Google (el navegador reconstruye
+  // el boton y el SDK lanza un error si se inicializa dos veces).
+  bool _googleInicializado = false;
+
+  // Enrolamiento TOTP pendiente de confirmar con el primer código.
+  MfaEnrollment? _pendingEnrollment;
+
+  /// Devuelve el enrolamiento TOTP pendiente de confirmar, si existe.
+  MfaEnrollment? get pendingEnrollment => _pendingEnrollment;
+
   Future<AuthState> restoreSession() async {
     final user = SupabaseService.client?.auth.currentUser;
     if (user == null) return const AuthState.unauthenticated();
-    _state = _stateFromUser(user);
+    _state = await _stateFromUser(user);
     return _state;
   }
 
@@ -44,7 +55,7 @@ class AuthRepository {
         if (user == null) {
           throw const AuthException('Supabase no devolvió un usuario válido.');
         }
-        _state = _stateFromUser(user, fallbackRole: role);
+        _state = await _stateFromUser(user, fallbackRole: role);
         return _state;
       } on supabase.AuthException catch (error) {
         throw AuthException(error.message);
@@ -97,7 +108,7 @@ class AuthRepository {
             'Cuenta creada. Confirma tu correo electrónico y luego inicia sesión.',
           );
         }
-        _state = _stateFromUser(user, fallbackRole: role);
+        _state = await _stateFromUser(user, fallbackRole: role);
         return _state;
       } on supabase.AuthException catch (error) {
         throw AuthException(error.message);
@@ -117,12 +128,42 @@ class AuthRepository {
     return _state;
   }
 
+  /// Prepara el SDK de Google Sign-In.
+  ///
+  /// En Android e iOS se llama antes de `authenticate()`. En la web el SDK
+  /// oficial (Google Identity Services) exige que se use su propio boton,
+  /// asi que este metodo solo deja el SDK listo para dibujarlo.
+  ///
+  /// El SDK lanza un error si se inicializa dos veces, por eso se guarda
+  /// una bandera: la pagina web puede reconstruir el boton varias veces.
+  Future<void> prepareGoogleSignIn() async {
+    if (!AppConfig.hasGoogleCredentials) {
+      throw const AuthException(
+        'Faltan las credenciales de Google (GOOGLE_CLIENT_ID y '
+        'GOOGLE_SERVER_CLIENT_ID) en el archivo .env.',
+      );
+    }
+    if (_googleInicializado) return;
+    await GoogleSignIn.instance.initialize(
+      clientId: AppConfig.googleClientId.isEmpty
+          ? null
+          : AppConfig.googleClientId,
+      serverClientId: AppConfig.googleServerClientId.isEmpty
+          ? null
+          : AppConfig.googleServerClientId,
+    );
+    _googleInicializado = true;
+  }
+
   /// Inicia sesión con Google.
   ///
   /// Cuando Supabase y las credenciales de Google están configurados se hace
   /// el flujo real: se obtiene el `id_token` de Google y Supabase lo valida
   /// para crear la sesión. El rol siempre es obligatorio: se guarda en los
   /// metadatos del usuario para que la app sepa si es cliente o trabajador.
+  ///
+  /// En la web este metodo no se usa: el boton oficial de Google devuelve el
+  /// token y el flujo continua en [signInWithGoogleToken].
   Future<AuthState> signInWithGoogle({required UserRole role}) async {
     final client = SupabaseService.client;
     if (client == null) {
@@ -145,14 +186,7 @@ class AuthRepository {
     }
 
     try {
-      await GoogleSignIn.instance.initialize(
-        clientId: AppConfig.googleClientId.isEmpty
-            ? null
-            : AppConfig.googleClientId,
-        serverClientId: AppConfig.googleServerClientId.isEmpty
-            ? null
-            : AppConfig.googleServerClientId,
-      );
+      await prepareGoogleSignIn();
 
       final account = await GoogleSignIn.instance.authenticate(
         scopeHint: const ['email', 'profile'],
@@ -166,6 +200,36 @@ class AuthRepository {
         );
       }
 
+      return await signInWithGoogleToken(
+        idToken,
+        role: role,
+        displayName: account.displayName,
+      );
+    } on AuthException {
+      rethrow;
+    } catch (error) {
+      throw AuthException('No se pudo iniciar sesión con Google: $error');
+    }
+  }
+
+  /// Valida en Supabase el `id_token` que devolvio Google.
+  ///
+  /// Es el paso comun a todas las plataformas: en Android e iOS el token
+  /// llega de [signInWithGoogle] y en la web llega del boton oficial de
+  /// Google Identity Services.
+  Future<AuthState> signInWithGoogleToken(
+    String idToken, {
+    required UserRole role,
+    String? displayName,
+  }) async {
+    final client = SupabaseService.client;
+    if (client == null) {
+      throw const AuthException(
+        'Supabase no está configurado. Revisa el archivo .env.',
+      );
+    }
+
+    try {
       final response = await client.auth.signInWithIdToken(
         provider: supabase.OAuthProvider.google,
         idToken: idToken,
@@ -181,13 +245,13 @@ class AuthRepository {
       final updated = await client.auth.updateUser(
         supabase.UserAttributes(
           data: {
-            'full_name': account.displayName ?? user.userMetadata?['full_name'],
+            'full_name': displayName ?? user.userMetadata?['full_name'],
             'role': role.name,
           },
         ),
       );
 
-      _state = _stateFromUser(updated.user ?? user, fallbackRole: role);
+      _state = await _stateFromUser(updated.user ?? user, fallbackRole: role);
       return _state;
     } on supabase.AuthException catch (error) {
       throw AuthException(error.message);
@@ -221,7 +285,7 @@ class AuthRepository {
         if (user == null) {
           throw const AuthException('No se pudo actualizar el perfil.');
         }
-        _state = _stateFromUser(user);
+        _state = await _stateFromUser(user);
         return _state;
       } on supabase.AuthException catch (error) {
         throw AuthException(error.message);
@@ -238,27 +302,113 @@ class AuthRepository {
     return _state;
   }
 
-  // Activa o desactiva el segundo factor (2FA).
+  // Activa o desactiva el segundo factor (2FA) con TOTP de Supabase.
+  //
+  // Al activar se genera el secreto y el codigo QR; el factor queda pendiente
+  // hasta que el usuario confirma con el primer codigo de su aplicacion
+  // autenticadora. Al desactivar se elimina el factor verificado.
   Future<AuthState> setTwoFactor(bool enabled) async {
-    if (SupabaseService.isConfigured) {
-      throw const AuthException(
-        'La verificación 2FA todavía no está configurada en Supabase.',
+    final client = SupabaseService.client;
+    if (client == null) {
+      await Future.delayed(const Duration(milliseconds: 200));
+      _state = _state.copyWith(twoFactorEnabled: enabled);
+      return _state;
+    }
+
+    try {
+      if (enabled) {
+        final enrollment = await client.auth.mfa.enroll(
+          factorType: supabase.FactorType.totp,
+          issuer: AppConfig.appName,
+          friendlyName: 'Aplicacion autenticadora',
+        );
+        final totp = enrollment.totp;
+        if (totp == null) {
+          throw const AuthException(
+            'Supabase no devolvio los datos del codigo QR. Intenta de nuevo.',
+          );
+        }
+        _pendingEnrollment = MfaEnrollment(
+          factorId: enrollment.id,
+          secret: totp.secret,
+          qrCode: totp.qrCode,
+          uri: totp.uri,
+        );
+        // El factor aun no esta verificado: la sesion sigue en aal1.
+        _state = await _stateFromUser(
+          client.auth.currentUser!,
+          fallbackRole: _state.role ?? UserRole.client,
+        );
+        return _state;
+      }
+
+      final factors = await client.auth.mfa.listFactors();
+      for (final factor in factors.totp) {
+        await client.auth.mfa.unenroll(factor.id);
+      }
+      _pendingEnrollment = null;
+      _state = await _stateFromUser(
+        client.auth.currentUser!,
+        fallbackRole: _state.role ?? UserRole.client,
+      );
+      return _state;
+    } on supabase.AuthException catch (error) {
+      throw AuthException(error.message);
+    } catch (error) {
+      throw AuthException(
+        'No se pudo actualizar la verificación en 2 pasos: $error',
       );
     }
-    await Future.delayed(const Duration(milliseconds: 200));
-    _state = _state.copyWith(twoFactorEnabled: enabled);
-    return _state;
   }
 
-  // Verifica el codigo 2FA. En modo mock acepta cualquier codigo de 6 digitos.
+  /// Verifica el codigo TOTP de 6 digitos.
+  ///
+  /// Con Supabase configurado se resuelve el reto real (challenge + verify).
+  /// En modo mock se acepta cualquier codigo numerico de 6 digitos.
   Future<bool> verifyTwoFactor(String code) async {
-    if (SupabaseService.isConfigured) {
-      throw const AuthException(
-        'La verificación 2FA todavía no está configurada en Supabase.',
-      );
+    final client = SupabaseService.client;
+    if (client == null) {
+      await Future.delayed(const Duration(milliseconds: 400));
+      return code.length == 6 && int.tryParse(code) != null;
     }
-    await Future.delayed(const Duration(milliseconds: 400));
-    return code.length == 6 && int.tryParse(code) != null;
+
+    try {
+      // Primero se confirma un enrolamiento pendiente (activacion).
+      final pending = _pendingEnrollment;
+      if (pending != null) {
+        await client.auth.mfa.challengeAndVerify(
+          factorId: pending.factorId,
+          code: code,
+        );
+        _pendingEnrollment = null;
+        _state = await _stateFromUser(
+          client.auth.currentUser!,
+          fallbackRole: _state.role ?? UserRole.client,
+        );
+        return true;
+      }
+
+      // Verificacion normal de una sesion que ya tiene factor TOTP.
+      final factors = await client.auth.mfa.listFactors();
+      if (factors.totp.isEmpty) {
+        throw const AuthException(
+          'No hay ningun metodo de verificacion registrado para esta cuenta.',
+        );
+      }
+      await client.auth.mfa.challengeAndVerify(
+        factorId: factors.totp.first.id,
+        code: code,
+      );
+      _state = await _stateFromUser(
+        client.auth.currentUser!,
+        fallbackRole: _state.role ?? UserRole.client,
+      );
+      return true;
+    } on supabase.AuthException catch (error) {
+      throw AuthException(error.message);
+    } catch (error) {
+      throw AuthException('El codigo no es valido: $error');
+    }
   }
 
   Future<void> logout() async {
@@ -270,16 +420,18 @@ class AuthRepository {
         throw AuthException(error.message);
       }
     }
+    _pendingEnrollment = null;
     _state = const AuthState.unauthenticated();
   }
 
-  AuthState _stateFromUser(
+  Future<AuthState> _stateFromUser(
     supabase.User user, {
     UserRole fallbackRole = UserRole.client,
-  }) {
+  }) async {
     final metadata = user.userMetadata ?? const <String, dynamic>{};
     final roleName = metadata['role'];
     final role = UserRole.values.where((value) => value.name == roleName);
+    final twoFactor = await _hasVerifiedFactor();
     return AuthState.authenticated(
       userId: user.id,
       email: user.email ?? '',
@@ -292,6 +444,19 @@ class AuthRepository {
       phone: metadata['phone'] as String?,
       city: metadata['city'] as String?,
       avatarUrl: metadata['avatar_url'] as String?,
+      twoFactorEnabled: twoFactor,
     );
+  }
+
+  /// Indica si la cuenta ya tiene un factor TOTP verificado.
+  Future<bool> _hasVerifiedFactor() async {
+    final client = SupabaseService.client;
+    if (client == null) return _state.twoFactorEnabled;
+    try {
+      final factors = await client.auth.mfa.listFactors();
+      return factors.totp.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
   }
 }

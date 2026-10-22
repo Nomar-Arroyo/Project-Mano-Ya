@@ -39,8 +39,7 @@ class WhatsAppService {
   /// Abre la conversación de WhatsApp con el número indicado.
   /// Devuelve `true` si se pudo lanzar la app de WhatsApp.
   static Future<bool> openChat({required String phone, String? message}) async {
-    // Limpiamos el teléfono y conservamos solo dígitos para wa.me.
-    final number = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    final number = _normalizePhone(phone);
     if (number.isEmpty) return false;
 
     final text = Uri.encodeComponent(message ?? '');
@@ -56,5 +55,27 @@ class WhatsAppService {
       // Ignoramos: el llamador decide cómo avisar al usuario.
     }
     return false;
+  }
+
+  /// Prepara el teléfono para el enlace de WhatsApp.
+  ///
+  /// En Venezuela el número local tiene 10 dígitos y empieza por 0
+  /// (0412-1112233). WhatsApp espera el formato internacional sin el cero
+  /// inicial (584121112233), así que se normaliza antes de construir la URL.
+  static String _normalizePhone(String phone) {
+    var digits = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) return '';
+
+    // Número local venezolano con el cero inicial: se quita ese cero.
+    if (digits.length == 11 && digits.startsWith('0')) {
+      digits = digits.substring(1);
+    }
+
+    // Si no trae el prefijo del país se agrega el 58 de Venezuela.
+    if (digits.length == 10) {
+      digits = '58$digits';
+    }
+
+    return digits;
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/colors.dart';
 import '../../../../core/services/whatsapp_service.dart';
@@ -223,6 +224,7 @@ class _WorkerDetailBody extends ConsumerWidget {
                   builder: (_) => RequestFormPage(
                     workerId: worker.id,
                     workerName: worker.name,
+                    workerCategory: worker.category,
                   ),
                 ),
               );
@@ -232,6 +234,20 @@ class _WorkerDetailBody extends ConsumerWidget {
             ),
             icon: const Icon(Icons.request_quote),
             label: const Text('Solicitar Presupuesto'),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () {
+              context.push(
+                '/reports/new',
+                extra: {'targetUserId': worker.id, 'targetName': worker.name},
+              );
+            },
+            icon: const Icon(Icons.flag_outlined),
+            label: const Text('Reportar un problema'),
           ),
         ),
       ],

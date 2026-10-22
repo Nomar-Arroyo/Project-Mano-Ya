@@ -26,12 +26,12 @@ class _WorkerPayoutPageState extends ConsumerState<WorkerPayoutPage> {
   String _method = '';
   bool _saving = false;
 
-  /// Métodos de pago ofrecidos en Colombia.
+  /// Métodos de pago ofrecidos en Venezuela.
   static const List<String> methods = [
-    'Nequi',
-    'Daviplata',
     'Transferencia bancaria',
-    'PSE',
+    'Pago móvil',
+    'Zelle',
+    'PayPal',
     'Efectivo',
   ];
 

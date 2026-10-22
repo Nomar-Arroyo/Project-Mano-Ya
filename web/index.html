@@ -20,6 +20,14 @@
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="Mano Ya - Tus Oficios a la Mano">
 
+  <!--
+    Client ID del cliente web de Google OAuth. El SDK de Google Identity
+    Services lo lee de aqui. Se sustituye durante la compilacion con
+    `--dart-define=GOOGLE_CLIENT_ID=...` a traves del script de despliegue;
+    si se deja vacio, el boton de Google avisara de que falta configurarlo.
+  -->
+  <meta name="google-signin-client_id" content="TU_CLIENT_ID_WEB_GOOGLE">
+
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">

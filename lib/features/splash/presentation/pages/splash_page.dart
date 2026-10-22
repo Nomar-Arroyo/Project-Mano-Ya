@@ -112,7 +112,7 @@ class _SplashPageState extends ConsumerState<SplashPage>
                   child: ScaleTransition(
                     scale: _logoScale,
                     child: Image.asset(
-                      'assets/icons/logo_oficial.png',
+                      'assets/icons/app_logo.png',
                       width: logoSize,
                       height: logoSize,
                       fit: BoxFit.contain,

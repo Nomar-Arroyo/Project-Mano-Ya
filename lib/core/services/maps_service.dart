@@ -23,43 +23,59 @@ class Place {
 /// zonas/ciudades del usuario y utiliza la fórmula de Haversine para
 /// estimar la distancia entre el usuario y los trabajadores cercanos.
 ///
+/// Las consultas están limitadas a Venezuela (`countrycodes=ve`): el
+/// servicio solo ofrece direcciones del país, de modo que nunca aparecen
+/// sugerencias de otros países.
+///
 /// Si la petición falla (sin internet, límite de uso de la API, etc.)
 /// se recurre a un catálogo local para no romper la experiencia.
 class MapsService {
   static const String _nominatimBase =
       'https://nominatim.openstreetmap.org/search';
 
-  /// Zonas de respaldo para modo offline / demo (Valle del Cauca y capitales).
+  /// Código de país de Venezuela para filtrar las respuestas de Nominatim.
+  static const String countryCode = 've';
+
+  /// Cantidad máxima de sugerencias que se muestran al usuario.
+  static const int maxSuggestions = 5;
+
+  /// Zonas de respaldo para modo offline / demo (Venezuela).
   static const List<Place> _fallbackPlaces = [
     Place(
-      displayName: 'Cali, Valle del Cauca, Colombia',
-      latitude: 3.4516,
-      longitude: -76.5320,
+      displayName: 'Caracas, Distrito Capital, Venezuela',
+      latitude: 10.4806,
+      longitude: -66.9036,
     ),
     Place(
-      displayName: 'Palmira, Valle del Cauca, Colombia',
-      latitude: 3.5394,
-      longitude: -76.3036,
+      displayName: 'Maracay, Aragua, Venezuela',
+      latitude: 10.2469,
+      longitude: -67.5958,
     ),
     Place(
-      displayName: 'Buenaventura, Valle del Cauca, Colombia',
-      latitude: 3.8801,
-      longitude: -77.0312,
+      displayName: 'Valencia, Carabobo, Venezuela',
+      latitude: 10.1620,
+      longitude: -68.0077,
     ),
     Place(
-      displayName: 'Bogotá, Colombia',
-      latitude: 4.7110,
-      longitude: -74.0721,
+      displayName: 'Barquisimeto, Lara, Venezuela',
+      latitude: 10.0670,
+      longitude: -69.3170,
     ),
     Place(
-      displayName: 'Medellín, Antioquia, Colombia',
-      latitude: 6.2442,
-      longitude: -75.5812,
+      displayName: 'Maracaibo, Zulia, Venezuela',
+      latitude: 10.6427,
+      longitude: -71.6125,
+    ),
+    Place(
+      displayName: 'Mérida, Mérida, Venezuela',
+      latitude: 8.5936,
+      longitude: -71.1431,
     ),
   ];
 
   /// Autocompleta zonas/ciudades a partir de un texto escrito por el usuario.
-  /// Devuelve como máximo 5 resultados (restricción de Nominatim).
+  ///
+  /// Devuelve como máximo 5 sugerencias, todas de Venezuela.
   static Future<List<Place>> autocomplete(String query) async {
     final text = query.trim();
     if (text.length < 3) return const [];
@@ -70,8 +86,11 @@ class MapsService {
           'q': text,
           'format': 'json',
           'addressdetails': '1',
-          'limit': '5',
-          'countrycodes': 'co',
+          // Se piden más resultados de los necesarios porque después se
+          // filtran los que no son localidades (calles y comercios).
+          'limit': '15',
+          // Solo Venezuela: nunca se muestran direcciones de otros países.
+          'countrycodes': countryCode,
         },
       );
       final res = await http
@@ -87,14 +106,24 @@ class MapsService {
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as List<dynamic>;
-        final places = data.map((item) {
+        final places = <Place>[];
+        for (final item in data) {
+          if (places.length >= maxSuggestions) break;
           final map = item as Map<String, dynamic>;
-          return Place(
-            displayName: map['display_name'] as String? ?? text,
-            latitude: double.tryParse(map['lat']?.toString() ?? '') ?? 0,
-            longitude: double.tryParse(map['lon']?.toString() ?? '') ?? 0,
+          // Doble filtro: se descarta cualquier resultado que no sea de
+          // Venezuela, aunque Nominatim devuelva algo inesperado.
+          if (!_isInCountry(map)) continue;
+          // Y un tercero: solo interesan las localidades, no las calles,
+          // los comercios ni los puntos de interés.
+          if (!_isLocality(map)) continue;
+          places.add(
+            Place(
+              displayName: map['display_name'] as String? ?? text,
+              latitude: double.tryParse(map['lat']?.toString() ?? '') ?? 0,
+              longitude: double.tryParse(map['lon']?.toString() ?? '') ?? 0,
+            ),
           );
-        }).toList();
+        }
         if (places.isNotEmpty) return places;
       }
     } catch (_) {
@@ -106,6 +135,49 @@ class MapsService {
     return _fallbackPlaces
         .where((p) => p.displayName.toLowerCase().contains(lower))
         .toList();
+  }
+
+  /// Tipos de lugar que se consideran una ciudad, pueblo o zona habitable.
+  ///
+  /// Nominatim devuelve muchos resultados que son calles, comercios o
+  /// puntos de interés (por ejemplo "Calle Cali" en Caracas). Solo se
+  /// aceptan las localidades para que el autocompletado muestre sitios
+  /// donde realmente se puede contratar el servicio.
+  static const Set<String> _localityTypes = {
+    'city',
+    'town',
+    'village',
+    'hamlet',
+    'locality',
+    'suburb',
+    'neighbourhood',
+    'city_district',
+    'borough',
+    'municipality',
+    'county',
+    'state',
+    'administrative',
+  };
+
+  /// Indica si el resultado corresponde a una localidad habitada.
+  static bool _isLocality(Map<String, dynamic> map) {
+    final type = map['type']?.toString().toLowerCase() ?? '';
+    if (type.isEmpty) return false;
+    return _localityTypes.contains(type);
+  }
+
+  /// Indica si el resultado de Nominatim pertenece a Venezuela.
+  ///
+  /// Se usa el código de país que devuelve la API y, si no viene, se revisa
+  /// que el nombre mostrado mencione Venezuela.
+  static bool _isInCountry(Map<String, dynamic> map) {
+    final address = map['address'];
+    if (address is Map<String, dynamic>) {
+      final code = address['country_code']?.toString().toLowerCase() ?? '';
+      if (code.isNotEmpty) return code == countryCode;
+    }
+    final display = map['display_name']?.toString().toLowerCase() ?? '';
+    return display.contains('venezuela');
   }
 
   /// Calcula la distancia aproximada en kilómetros entre dos coordenadas

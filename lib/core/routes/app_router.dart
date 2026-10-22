@@ -10,6 +10,8 @@ import '../../features/profile/presentation/pages/saved_addresses_page.dart';
 import '../../features/profile/presentation/pages/service_history_page.dart';
 import '../../features/profile/presentation/pages/worker_payout_page.dart';
 import '../../features/profile/presentation/pages/worker_portfolio_page.dart';
+import '../../features/reports/presentation/pages/my_reports_page.dart';
+import '../../features/reports/presentation/pages/report_page.dart';
 import '../../features/splash/presentation/pages/splash_page.dart';
 import '../../features/workers/presentation/pages/worker_detail_page.dart';
 
@@ -56,6 +58,20 @@ class AppRouter {
         path: '/worker/:id',
         builder: (_, state) =>
             WorkerDetailPage(workerId: state.pathParameters['id']!),
+      ),
+
+      // Reportes y denuncias.
+      GoRoute(path: '/reports', builder: (_, _) => const MyReportsPage()),
+      GoRoute(
+        path: '/reports/new',
+        builder: (_, state) {
+          final params = state.extra as Map<String, dynamic>?;
+          return ReportPage(
+            targetUserId: params?['targetUserId'] as String?,
+            targetName: params?['targetName'] as String?,
+            jobId: params?['jobId'] as String?,
+          );
+        },
       ),
     ],
   );

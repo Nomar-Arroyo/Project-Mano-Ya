@@ -2,8 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/services/storage_service.dart';
 import '../../shared/models/user_role.dart';
+import '../../workers/data/worker_registration_service.dart';
 import '../data/auth_repository.dart';
 import '../domain/auth_state.dart';
+import '../domain/mfa_enrollment.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>(
   (ref) => AuthRepository(),
@@ -74,6 +76,15 @@ class AuthNotifier extends Notifier<AuthState> {
         city: city,
       );
       await _persist();
+      // La ficha del trabajador se crea en el catálogo de oficios.
+      if (role == UserRole.worker) {
+        await WorkerRegistrationService.registerAfterSignUp(
+          userId: state.userId ?? '',
+          name: name,
+          phone: phone,
+          city: city,
+        );
+      }
     } on AuthException catch (e) {
       state = AuthState.failure(e.message);
     } catch (_) {
@@ -87,10 +98,32 @@ class AuthNotifier extends Notifier<AuthState> {
     state = const AuthState.loading();
     try {
       state = await repo.signInWithGoogle(role: role);
-      final twoFactor = await StorageService.getTwoFactorEnabled();
-      if (twoFactor != state.twoFactorEnabled) {
-        state = await repo.setTwoFactor(twoFactor);
-      }
+      await _persist();
+    } on AuthException catch (e) {
+      state = AuthState.failure(e.message);
+    } catch (_) {
+      state = const AuthState.failure(
+        'No se pudo iniciar sesión con Google. Intenta de nuevo.',
+      );
+    }
+  }
+
+  /// Inicia sesión con Google usando un token ya obtenido.
+  ///
+  /// Es el camino de la web: el botón oficial de Google Identity Services
+  /// entrega el `id_token` y aquí se valida contra Supabase.
+  Future<void> signInWithGoogleToken(
+    String idToken, {
+    required UserRole role,
+    String? displayName,
+  }) async {
+    state = const AuthState.loading();
+    try {
+      state = await repo.signInWithGoogleToken(
+        idToken,
+        role: role,
+        displayName: displayName,
+      );
       await _persist();
     } on AuthException catch (e) {
       state = AuthState.failure(e.message);
@@ -129,6 +162,9 @@ class AuthNotifier extends Notifier<AuthState> {
     await StorageService.setTwoFactorEnabled(enabled);
     await _persist();
   }
+
+  /// Enrolamiento TOTP pendiente de confirmar con el primer codigo.
+  MfaEnrollment? get pendingMfaEnrollment => repo.pendingEnrollment;
 
   Future<bool> verifyTwoFactor(String code) => repo.verifyTwoFactor(code);
 

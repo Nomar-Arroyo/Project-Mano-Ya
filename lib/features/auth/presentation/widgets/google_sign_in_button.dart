@@ -1,0 +1,120 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+
+import '../../../shared/models/user_role.dart';
+import '../../../shared/widgets/app_button.dart';
+import '../../data/auth_repository.dart';
+import '../auth_provider.dart';
+import 'google_sign_in_platform_stub.dart'
+    if (dart.library.js_interop) 'google_sign_in_platform_web.dart'
+    as platform;
+
+/// Botón de inicio de sesión con Google que funciona en todas las plataformas.
+///
+/// En Android e iOS se usa el diálogo nativo del SDK. En la web, Google
+/// Identity Services **solo permite** iniciar sesión con el botón que
+/// proporciona el propio SDK: por eso ahí se dibuja ese botón y se escucha
+/// el evento de autenticación para pasarle el token a Supabase.
+class GoogleSignInButton extends ConsumerStatefulWidget {
+  /// Rol con el que se creará la cuenta (cliente o trabajador).
+  final UserRole role;
+
+  /// Texto del botón en Android e iOS.
+  final String label;
+
+  const GoogleSignInButton({
+    super.key,
+    required this.role,
+    this.label = 'Continuar con Google',
+  });
+
+  @override
+  ConsumerState<GoogleSignInButton> createState() => _GoogleSignInButtonState();
+}
+
+class _GoogleSignInButtonState extends ConsumerState<GoogleSignInButton> {
+  bool _listo = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (kIsWeb) _prepararWeb();
+  }
+
+  /// Prepara el SDK de Google en la web y escucha el evento de inicio de
+  /// sesión que emite el botón oficial.
+  Future<void> _prepararWeb() async {
+    try {
+      await ref.read(authRepositoryProvider).prepareGoogleSignIn();
+
+      GoogleSignIn.instance.authenticationEvents.listen(
+        (evento) {
+          if (evento is GoogleSignInAuthenticationEventSignIn) {
+            final token = evento.user.authentication.idToken;
+            if (token != null && token.isNotEmpty) {
+              _iniciarSesion(token, evento.user.displayName);
+            }
+          }
+        },
+        onError: (Object error) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text('Error de Google: $error')));
+        },
+      );
+
+      if (mounted) setState(() => _listo = true);
+    } on AuthException catch (error) {
+      if (!mounted) return;
+      setState(() => _listo = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _listo = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo iniciar Google: $error')),
+      );
+    }
+  }
+
+  /// Valida el token de Google en Supabase.
+  Future<void> _iniciarSesion(String idToken, String? displayName) async {
+    await ref
+        .read(authStateProvider.notifier)
+        .signInWithGoogleToken(
+          idToken,
+          role: widget.role,
+          displayName: displayName,
+        );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (kIsWeb) {
+      if (!_listo) {
+        return const SizedBox(
+          height: 44,
+          child: Center(
+            child: SizedBox(
+              height: 20,
+              width: 20,
+              child: CircularProgressIndicator(strokeWidth: 2.4),
+            ),
+          ),
+        );
+      }
+      return platform.buildWebGoogleButton();
+    }
+
+    return AppButton(
+      label: widget.label,
+      icon: Icons.g_mobiledata,
+      variant: AppButtonVariant.outline,
+      onPressed: () =>
+          ref.read(authStateProvider.notifier).signInWithGoogle(widget.role),
+    );
+  }
+}

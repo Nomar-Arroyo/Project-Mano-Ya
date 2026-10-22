@@ -108,7 +108,7 @@ class _WorkerDashboard extends ConsumerWidget {
           ActiveJobCard(
             job: active,
             perspective: JobPerspective.worker,
-            onAdvance: () => ref.read(jobsControllerProvider).advance(active),
+            onAdvance: () => advanceJob(context, ref, active),
             onTap: () => _openJobDetail(context, active.id),
           )
         else

@@ -67,7 +67,7 @@ class PortfolioItem {
 /// Corresponde al punto 4 del perfil del trabajador en el mega-prompt
 /// ("Configuración de cuentas bancarias o métodos de pago preferidos").
 class PayoutInfo {
-  /// Método de pago elegido (Nequi, Daviplata, transferencia bancaria, etc.).
+  /// Método de pago elegido (pago móvil, transferencia bancaria, etc.).
   final String method;
 
   /// Nombre del titular de la cuenta.

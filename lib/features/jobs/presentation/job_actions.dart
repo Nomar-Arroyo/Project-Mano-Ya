@@ -7,6 +7,25 @@ import '../../auth/presentation/auth_provider.dart';
 import '../domain/job.dart';
 import 'jobs_provider.dart';
 
+/// Avanza el trabajo al siguiente estado del flujo.
+///
+/// Si el cambio no se puede guardar (por ejemplo, porque la base de datos
+/// no está disponible) se informa al usuario en lugar de dejar la pantalla
+/// en silencio.
+Future<void> advanceJob(BuildContext context, WidgetRef ref, Job job) async {
+  try {
+    await ref.read(jobsControllerProvider).advance(job);
+  } catch (error) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('No se pudo actualizar el trabajo: $error'),
+        backgroundColor: ManoYaColors.danger,
+      ),
+    );
+  }
+}
+
 /// Abre el diálogo para que el cliente califique a un trabajador.
 Future<void> showRateJobDialog(
   BuildContext context,
@@ -64,9 +83,26 @@ Future<void> showRateJobDialog(
 
   if (confirmed == true) {
     final comment = commentController.text.trim();
-    await ref
-        .read(jobsControllerProvider)
-        .rate(job.id, rating: rating, review: comment.isEmpty ? null : comment);
+    try {
+      await ref
+          .read(jobsControllerProvider)
+          .rate(
+            job.id,
+            rating: rating,
+            review: comment.isEmpty ? null : comment,
+          );
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No se pudo guardar la calificación: $error'),
+            backgroundColor: ManoYaColors.danger,
+          ),
+        );
+      }
+      commentController.dispose();
+      return;
+    }
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

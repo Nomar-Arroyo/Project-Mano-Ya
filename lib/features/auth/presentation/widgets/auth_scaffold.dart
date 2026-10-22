@@ -141,7 +141,7 @@ class _BrandHeader extends StatelessWidget {
           // Logotipo oficial de la marca (no se usan íconos genéricos).
           padding: EdgeInsets.all(compact ? 6 : 8),
           child: Image.asset(
-            'assets/icons/logo_oficial.png',
+            'assets/icons/app_logo.png',
             fit: BoxFit.contain,
             filterQuality: FilterQuality.high,
             semanticLabel: 'Mano Ya',

@@ -47,7 +47,7 @@ class JobDetailPage extends ConsumerWidget {
               ActiveJobCard(
                 job: job,
                 perspective: perspective,
-                onAdvance: () => ref.read(jobsControllerProvider).advance(job),
+                onAdvance: () => advanceJob(context, ref, job),
                 onContact: () => contactJobWorker(context, ref, job),
                 onRate: () => showRateJobDialog(context, ref, job),
               ),
