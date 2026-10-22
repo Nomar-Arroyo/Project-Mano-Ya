@@ -423,7 +423,7 @@ código `0` si hay al menos un perfil y `1` si la base está vacía.
 | `GOOGLE_SERVER_CLIENT_ID` | `.env` y secretos del hosting | Sí, es público |
 | `SUPABASE_SERVICE_ROLE_KEY` (`sb_secret_...`) | `.env` de n8n | **No** |
 | `GOOGLE_CLIENT_SECRET` | Panel de Supabase | **No** |
-| `N8N_WEBHOOK_SECRET` | n8n y secretos de Supabase | **No** |
+| `N8N_WEBHOOK_SECRET` | n8n, secretos de Supabase y `.env` de la app movil | **No en la web**; en el APK viaja en la cabecera `X-Webhook-Secret` |
 | Contraseña de la base de datos | Solo en tus notas | **No** |
 
 El archivo `.env` ya está en `.gitignore`. Antes de hacer commit, revisa con

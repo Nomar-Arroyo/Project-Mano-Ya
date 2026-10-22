@@ -343,17 +343,21 @@ las variables que esten Informadas como `--dart-define`:
 .\tool\run_flutter_with_env.ps1 build web --release
 ```
 
-**`N8N_WEBHOOK_SECRET` NO se pasa como `--dart-define`.** Es un secreto de
-servidor: viaja de n8n a la Edge Function, nunca al navegador ni al
-movil. Si lo metieras en el bundle de la web, cualquiera podria leerlo del
-JavaScript y mandar correos a soporte.
+**`N8N_WEBHOOK_SECRET` se pasa como `--dart-define` SOLO en la app movil.**
+Es un secreto de servidor: en la web no debe ir en el bundle, porque
+cualquiera podria leerlo del JavaScript y mandar correos a soporte.
 
-> El webhook de n8n es publico (la app envia el reporte sin cabeceras de
-> autenticacion). Para endurecerlo puedes activar la autenticacion por
-> cabecera del nodo Webhook de n8n, pero entonces tendrias que modificar la
-> app para que mande esa cabecera. Con la configuracion actual el unico
-> riesgo real es que alguien que adivine la URL genere un correo de aviso
-> sin relacion.
+- **Movil (APK)**: el script `tool\run_flutter_with_env.ps1` lo inyecta y la
+  app manda la cabecera `X-Webhook-Secret` en cada peticion al webhook de
+  n8n. Activa en n8n la autenticacion por cabecera del nodo Webhook
+  (`Header Auth` con el mismo valor) para que solo la app pueda dispararlo.
+- **Web**: el bundle se compila sin el secreto. En su lugar la app manda el
+  token de sesion del usuario en `Authorization: Bearer <token>` y la Edge
+  Function `notify-report` valida esa sesion contra Supabase en el servidor.
+
+> El webhook de n8n es publico si no activas la autenticacion por cabecera.
+> Sin ella, alguien que adivine la URL puede generar un correo de aviso sin
+> relacion. En movil el riesgo queda cerrado con `Header Auth`.
 
 ---
 

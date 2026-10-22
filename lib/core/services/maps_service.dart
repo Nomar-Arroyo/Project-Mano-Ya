@@ -4,7 +4,7 @@ import 'dart:math' as math;
 import 'package:http/http.dart' as http;
 
 /// Representa una zona/ciudad devuelta por el autocompletado.
-/// Guarda el nombre legible y las coordenadas para calcular cercanía.
+/// Guarda el nombre legible y las coordenadas para calcular cercanÃ­a.
 class Place {
   final String displayName;
   final double latitude;
@@ -17,26 +17,26 @@ class Place {
   });
 }
 
-/// Servicio de geolocalización.
+/// Servicio de geolocalizaciÃ³n.
 ///
-/// Usa la API pública de OpenStreetMap (Nominatim) para autocompletar
-/// zonas/ciudades del usuario y utiliza la fórmula de Haversine para
+/// Usa la API pÃºblica de OpenStreetMap (Nominatim) para autocompletar
+/// zonas/ciudades del usuario y utiliza la fÃ³rmula de Haversine para
 /// estimar la distancia entre el usuario y los trabajadores cercanos.
 ///
-/// Las consultas están limitadas a Venezuela (`countrycodes=ve`): el
-/// servicio solo ofrece direcciones del país, de modo que nunca aparecen
-/// sugerencias de otros países.
+/// Las consultas estÃ¡n limitadas a Venezuela (`countrycodes=ve`): el
+/// servicio solo ofrece direcciones del paÃ­s, de modo que nunca aparecen
+/// sugerencias de otros paÃ­ses.
 ///
-/// Si la petición falla (sin internet, límite de uso de la API, etc.)
-/// se recurre a un catálogo local para no romper la experiencia.
+/// Si la peticiÃ³n falla (sin internet, lÃ­mite de uso de la API, etc.)
+/// se recurre a un catÃ¡logo local para no romper la experiencia.
 class MapsService {
   static const String _nominatimBase =
       'https://nominatim.openstreetmap.org/search';
 
-  /// Código de país de Venezuela para filtrar las respuestas de Nominatim.
+  /// CÃ³digo de paÃ­s de Venezuela para filtrar las respuestas de Nominatim.
   static const String countryCode = 've';
 
-  /// Cantidad máxima de sugerencias que se muestran al usuario.
+  /// Cantidad mÃ¡xima de sugerencias que se muestran al usuario.
   static const int maxSuggestions = 5;
 
   /// Zonas de respaldo para modo offline / demo (Venezuela).
@@ -67,7 +67,7 @@ class MapsService {
       longitude: -71.6125,
     ),
     Place(
-      displayName: 'Mérida, Mérida, Venezuela',
+      displayName: 'MÃ©rida, MÃ©rida, Venezuela',
       latitude: 8.5936,
       longitude: -71.1431,
     ),
@@ -75,7 +75,7 @@ class MapsService {
 
   /// Autocompleta zonas/ciudades a partir de un texto escrito por el usuario.
   ///
-  /// Devuelve como máximo 5 sugerencias, todas de Venezuela.
+  /// Devuelve como mÃ¡ximo 5 sugerencias, todas de Venezuela.
   static Future<List<Place>> autocomplete(String query) async {
     final text = query.trim();
     if (text.length < 3) return const [];
@@ -86,10 +86,10 @@ class MapsService {
           'q': text,
           'format': 'json',
           'addressdetails': '1',
-          // Se piden más resultados de los necesarios porque después se
+          // Se piden mÃ¡s resultados de los necesarios porque despuÃ©s se
           // filtran los que no son localidades (calles y comercios).
           'limit': '15',
-          // Solo Venezuela: nunca se muestran direcciones de otros países.
+          // Solo Venezuela: nunca se muestran direcciones de otros paÃ­ses.
           'countrycodes': countryCode,
         },
       );
@@ -112,10 +112,10 @@ class MapsService {
           final map = item as Map<String, dynamic>;
           // Doble filtro: se descarta cualquier resultado que no sea de
           // Venezuela, aunque Nominatim devuelva algo inesperado.
-          if (!_isInCountry(map)) continue;
+          if (!isInCountryPlace(map)) continue;
           // Y un tercero: solo interesan las localidades, no las calles,
-          // los comercios ni los puntos de interés.
-          if (!_isLocality(map)) continue;
+          // los comercios ni los puntos de interÃ©s.
+          if (!isLocalityPlace(map)) continue;
           places.add(
             Place(
               displayName: map['display_name'] as String? ?? text,
@@ -130,7 +130,7 @@ class MapsService {
       // Silencioso: caemos al respaldo local.
     }
 
-    // Respaldo local si no hay conexión o la API no responde.
+    // Respaldo local si no hay conexiÃ³n o la API no responde.
     final lower = text.toLowerCase();
     return _fallbackPlaces
         .where((p) => p.displayName.toLowerCase().contains(lower))
@@ -140,7 +140,7 @@ class MapsService {
   /// Tipos de lugar que se consideran una ciudad, pueblo o zona habitable.
   ///
   /// Nominatim devuelve muchos resultados que son calles, comercios o
-  /// puntos de interés (por ejemplo "Calle Cali" en Caracas). Solo se
+  /// puntos de interÃ©s (por ejemplo "Calle Cali" en Caracas). Solo se
   /// aceptan las localidades para que el autocompletado muestre sitios
   /// donde realmente se puede contratar el servicio.
   static const Set<String> _localityTypes = {
@@ -160,7 +160,7 @@ class MapsService {
   };
 
   /// Indica si el resultado corresponde a una localidad habitada.
-  static bool _isLocality(Map<String, dynamic> map) {
+  static bool isLocalityPlace(Map<String, dynamic> map) {
     final type = map['type']?.toString().toLowerCase() ?? '';
     if (type.isEmpty) return false;
     return _localityTypes.contains(type);
@@ -168,9 +168,9 @@ class MapsService {
 
   /// Indica si el resultado de Nominatim pertenece a Venezuela.
   ///
-  /// Se usa el código de país que devuelve la API y, si no viene, se revisa
+  /// Se usa el cÃ³digo de paÃ­s que devuelve la API y, si no viene, se revisa
   /// que el nombre mostrado mencione Venezuela.
-  static bool _isInCountry(Map<String, dynamic> map) {
+  static bool isInCountryPlace(Map<String, dynamic> map) {
     final address = map['address'];
     if (address is Map<String, dynamic>) {
       final code = address['country_code']?.toString().toLowerCase() ?? '';
@@ -180,8 +180,8 @@ class MapsService {
     return display.contains('venezuela');
   }
 
-  /// Calcula la distancia aproximada en kilómetros entre dos coordenadas
-  /// usando la fórmula de Haversine.
+  /// Calcula la distancia aproximada en kilÃ³metros entre dos coordenadas
+  /// usando la fÃ³rmula de Haversine.
   static double distanceKm(double lat1, double lon1, double lat2, double lon2) {
     const double earthRadiusKm = 6371.0;
     double toRadians(double degrees) => degrees * (math.pi / 180.0);

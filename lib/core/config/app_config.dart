@@ -42,6 +42,20 @@ class AppConfig {
     defaultValue: '',
   );
 
+  // Secreto compartido con n8n. Viaja en la cabecera `X-Webhook-Secret` de
+  // cada peticion al webhook para que solo quien lo conoce pueda generar
+  // avisos de soporte.
+  //
+  // AVISO: en la web el bundle es publico, asi que cualquiera que abra el
+  // codigo fuente puede leer este valor. Por eso el webhook de n8n debe
+  // validar el secreto en el servidor (nodo Webhook -> Header Auth) y en la
+  // Edge Function, no confiar solo en la cabecera. En el APK el valor va
+  // dentro del binario y es mas dificil de extraer.
+  static const String n8nWebhookSecret = String.fromEnvironment(
+    'N8N_WEBHOOK_SECRET',
+    defaultValue: '',
+  );
+
   // Correo de soporte que recibe los reportes enviados desde la app.
   static const String supportEmail = String.fromEnvironment(
     'SUPPORT_EMAIL',
@@ -61,4 +75,8 @@ class AppConfig {
 
   /// Indica si hay un webhook de n8n configurado para el envío de reportes.
   static bool get hasReportWebhook => n8nWebhookUrl.isNotEmpty;
+
+  /// Indica si hay un secreto configurado para autenticar las peticiones
+  /// contra el webhook de n8n.
+  static bool get hasWebhookSecret => n8nWebhookSecret.isNotEmpty;
 }

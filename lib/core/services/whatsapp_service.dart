@@ -36,16 +36,22 @@ class WhatsAppService {
     return buffer.toString();
   }
 
+  /// Construye el enlace `https://wa.me/...` con el número ya normalizado
+  /// y el mensaje codificado. Se expone para poder verificarla con pruebas.
+  static String buildChatUrl({required String phone, String? message}) {
+    final number = _normalizePhone(phone);
+    if (number.isEmpty) return '';
+    final text = Uri.encodeComponent(message ?? '');
+    return 'https://wa.me/$number${text.isEmpty ? '' : '?text=$text'}';
+  }
+
   /// Abre la conversación de WhatsApp con el número indicado.
   /// Devuelve `true` si se pudo lanzar la app de WhatsApp.
   static Future<bool> openChat({required String phone, String? message}) async {
-    final number = _normalizePhone(phone);
-    if (number.isEmpty) return false;
+    final url = buildChatUrl(phone: phone, message: message);
+    if (url.isEmpty) return false;
 
-    final text = Uri.encodeComponent(message ?? '');
-    final uri = Uri.parse(
-      'https://wa.me/$number${text.isEmpty ? '' : '?text=$text'}',
-    );
+    final uri = Uri.parse(url);
 
     try {
       if (await canLaunchUrl(uri)) {
@@ -54,7 +60,15 @@ class WhatsAppService {
     } catch (_) {
       // Ignoramos: el llamador decide cómo avisar al usuario.
     }
-    return false;
+
+    // Respaldo: si el sistema no reporta un manejador (WhatsApp no instalado
+    // o consulta bloqueada por el sistema), se intenta abrir igual en el
+    // navegador, que redirige a la web de WhatsApp.
+    try {
+      return await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Prepara el teléfono para el enlace de WhatsApp.

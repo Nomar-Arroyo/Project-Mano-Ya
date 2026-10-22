@@ -260,29 +260,77 @@ async function sendEmail(report: ReportData): Promise<MailResult> {
   }
 }
 
-function checkSecret(request: Request): { ok: boolean; error: string } {
+async function checkSecret(
+  request: Request,
+): Promise<{ ok: boolean; error: string }> {
   const expected = Deno.env.get('N8N_WEBHOOK_SECRET')?.trim() ?? '';
-  if (!expected) {
-    return {
-      ok: false,
-      error:
-        'La funcion no tiene configurado N8N_WEBHOOK_SECRET. Agregalo en Supabase -> Edge Functions -> Secrets.',
-    };
-  }
-
   const headerName = (
     Deno.env.get('WEBHOOK_SECRET_HEADER')?.trim() || 'x-webhook-secret'
   ).toLowerCase();
   const provided = (request.headers.get(headerName) ?? '').trim();
 
-  if (!provided) {
-    return { ok: false, error: `Falta la cabecera ${headerName}.` };
-  }
-  if (provided !== expected) {
-    return { ok: false, error: 'El secreto de la cabecera no coincide.' };
+  if (expected && provided && provided === expected) {
+    return { ok: true, error: '' };
   }
 
-  return { ok: true, error: '' };
+  // La version web de la app no lleva el secreto (quedaria exposed en el
+  // bundle publico), asi que se acepta tambien una sesion de usuario
+  // valida. El navegador manda el token de acceso en la cabecera
+  // `Authorization: Bearer <access_token>`.
+  return checkUserSession(request);
+}
+
+/// Valida la sesion de Supabase del cliente que hace la peticion.
+///
+/// Se usa en la version web, donde el secreto compartido no puede viajar en
+/// el bundle. La sesion si la valida el servidor de autenticacion de
+/// Supabase, de modo que solo un usuario con cuenta activa puede reportar.
+async function checkUserSession(
+  request: Request,
+): Promise<{ ok: boolean; error: string }> {
+  const authHeader = (request.headers.get('authorization') ?? '').trim();
+  if (!authHeader.toLowerCase().startsWith('bearer ')) {
+    return {
+      ok: false,
+      error: `Falta la cabecera ${'x-webhook-secret'} o un token de sesion valido.`,
+    };
+  }
+
+  const token = authHeader.substring(7).trim();
+  if (!token) {
+    return { ok: false, error: 'El token de sesion viene vacio.' };
+  }
+
+  const supabaseUrl = (Deno.env.get('SUPABASE_URL') ?? '').trim();
+  const anonKey = (Deno.env.get('SUPABASE_ANON_KEY') ?? '').trim();
+  if (!supabaseUrl || !anonKey) {
+    return {
+      ok: false,
+      error:
+        'La funcion no tiene SUPABASE_URL ni SUPABASE_ANON_KEY en sus secretos, no se puede validar la sesion.',
+    };
+  }
+
+  try {
+    const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: {
+        apikey: anonKey,
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      return { ok: false, error: 'La sesion del usuario no es valida.' };
+    }
+
+    return { ok: true, error: '' };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      ok: false,
+      error: `No se pudo validar la sesion del usuario: ${message}`,
+    };
+  }
 }
 
 Deno.serve(async (request: Request): Promise<Response> => {
@@ -297,7 +345,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
     });
   }
 
-  const secret = checkSecret(request);
+  const secret = await checkSecret(request);
   if (!secret.ok) {
     return respond(401, { ok: false, error: secret.error });
   }

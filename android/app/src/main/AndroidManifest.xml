@@ -41,5 +41,16 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Desde Android 11 las apps no pueden detectar que otras apps manejan
+             URLs https salvo que se declaren aqui. Sin esto canLaunchUrl()
+             devuelve false y los enlaces de WhatsApp nunca se abren. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <category android:name="android.intent.category.BROWSABLE"/>
+            <data android:scheme="https"/>
+        </intent>
+        <!-- WhatsApp y WhatsApp Business, para abrir el chat directamente. -->
+        <package android:name="com.whatsapp"/>
+        <package android:name="com.whatsapp.w4b"/>
     </queries>
 </manifest>

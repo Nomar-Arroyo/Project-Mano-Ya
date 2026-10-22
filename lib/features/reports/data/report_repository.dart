@@ -36,6 +36,31 @@ class ReportSubmission {
 class ReportRepository {
   static const String _table = 'reports';
 
+  /// Cliente HTTP usado para avisar a n8n. Se puede inyectar uno de prueba
+  /// para verificar las cabeceras enviadas.
+  final http.Client _httpClient;
+
+  /// URL del webhook de n8n. Por defecto sale de la configuracion de la app,
+  /// pero se puede sobreescribir (por ejemplo en pruebas).
+  final String? webhookUrl;
+
+  /// Secreto compartido con n8n. Por defecto sale de la configuracion de la
+  /// app, pero se puede sobreescribir (por ejemplo en pruebas).
+  final String? webhookSecret;
+
+  ReportRepository({
+    http.Client? httpClient,
+    this.webhookUrl,
+    this.webhookSecret,
+  }) : _httpClient = httpClient ?? http.Client();
+
+  /// URL efectiva del webhook.
+  String get _effectiveWebhookUrl => webhookUrl ?? AppConfig.n8nWebhookUrl;
+
+  /// Secreto efectivo que viaja en la cabecera `X-Webhook-Secret`.
+  String get _effectiveWebhookSecret =>
+      webhookSecret ?? AppConfig.n8nWebhookSecret;
+
   /// Guarda un reporte y notifica a n8n.
   Future<ReportSubmission> submit({
     required String reporterId,
@@ -129,13 +154,31 @@ class ReportRepository {
   }
 
   /// Envía la notificación al webhook de n8n.
+  ///
+  /// La petición incluye la cabecera `X-Webhook-Secret` con el secreto
+  /// compartido, para que n8n solo acepte avisos de esta app.
   Future<bool> _notifyWebhook(Report report, String? reportId) async {
-    if (!AppConfig.hasReportWebhook) return false;
+    final webhookUrl = _effectiveWebhookUrl;
+    if (webhookUrl.isEmpty) return false;
     try {
-      final response = await http
+      final headers = <String, String>{'Content-Type': 'application/json'};
+      final secret = _effectiveWebhookSecret;
+      if (secret.isNotEmpty) {
+        headers['X-Webhook-Secret'] = secret;
+      }
+
+      // La version web no lleva el secreto en el bundle, asi que se envia la
+      // sesion del usuario: la Edge Function la valida en el servidor.
+      final accessToken =
+          SupabaseService.client?.auth.currentSession?.accessToken;
+      if (accessToken != null && accessToken.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $accessToken';
+      }
+
+      final response = await _httpClient
           .post(
-            Uri.parse(AppConfig.n8nWebhookUrl),
-            headers: const {'Content-Type': 'application/json'},
+            Uri.parse(webhookUrl),
+            headers: headers,
             body: jsonEncode({
               'evento': 'nuevo_reporte',
               'id': reportId ?? report.id,

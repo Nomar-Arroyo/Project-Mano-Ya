@@ -58,6 +58,8 @@ android/key.properties
 # Credenciales de servicios externos: nunca se suben a Git.
 client_secret.json
 *_client_secret.json
+*client_id.json
+*_client_id.json
 service-account*.json
 firebase-adminsdk*.json
 .vercel/

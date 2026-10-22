@@ -86,6 +86,12 @@ las pruebas previas):
 > `N8N_WEBHOOK_SECRET`: son secretos de servidor y no deben ir al navegador.
 > El build command de arriba solo pasa las variables publicas, precisamente
 > para que las claves privadas nunca entren en el bundle de la web.
+>
+> En la web los reportes se authenticate con la sesion del usuario
+> (`Authorization: Bearer <access_token>`) y la Edge Function `notify-report`
+> valida esa sesion en el servidor. En la app movil si se inyecta
+> `N8N_WEBHOOK_SECRET`, porque ahi viaja en la cabecera `X-Webhook-Secret`
+> de cada peticion al webhook de n8n.
 
 Todas estas variables llegan al navegador dentro del bundle, asi que son
 publicas por naturaleza: usa siempre la **clave anon** de Supabase, nunca la
