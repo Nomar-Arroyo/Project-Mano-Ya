@@ -1,0 +1,94 @@
+name: Deploy web (GitHub Pages)
+
+# Publica la version web de Mano Ya en la rama `gh-pages` de GitHub Pages.
+#
+# Pasos una vez en el repositorio:
+#   1. Settings -> Pages -> Build and deployment -> Source: "Deploy from a
+#      branch" -> rama `gh-pages` -> carpeta `/ (root)` -> Save.
+#   2. Settings -> Secrets and variables -> Actions -> New repository secret
+#      y crea los secretos que se listan abajo (SUPABASE_URL,
+#      SUPABASE_ANON_KEY, GOOGLE_CLIENT_ID, GOOGLE_SERVER_CLIENT_ID,
+#      WEB_APP_URL, N8N_WEBHOOK_URL, SUPPORT_EMAIL).
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'lib/**'
+      - 'web/**'
+      - 'assets/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - '.github/workflows/deploy-web.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy-web
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    name: Compilar y publicar la web
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Copiar el codigo del repositorio
+        uses: actions/checkout@v4
+
+      - name: Instalar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.7'
+          cache: true
+
+      - name: Cachear las dependencias de Dart
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            .dart_tool/package_config.json
+          key: pub-cache-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            pub-cache-${{ runner.os }}-
+
+      - name: Instalar las dependencias del proyecto
+        run: flutter pub get
+
+      - name: Compilar la version web
+        run: |
+          flutter build web --release \
+            --base-href "/${{ github.event.repository.name }}/" \
+            --dart-define=SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
+            --dart-define=SUPABASE_ANON_KEY="${{ secrets.SUPABASE_ANON_KEY }}" \
+            --dart-define=GOOGLE_CLIENT_ID="${{ secrets.GOOGLE_CLIENT_ID }}" \
+            --dart-define=GOOGLE_SERVER_CLIENT_ID="${{ secrets.GOOGLE_SERVER_CLIENT_ID }}" \
+            --dart-define=WEB_APP_URL="${{ secrets.WEB_APP_URL }}" \
+            --dart-define=N8N_WEBHOOK_URL="${{ secrets.N8N_WEBHOOK_URL }}" \
+            --dart-define=SUPPORT_EMAIL="${{ secrets.SUPPORT_EMAIL }}"
+
+      - name: Preparar la carpeta publica
+        run: |
+          cd build/web
+          touch .nojekyll
+          echo "Desplegado desde el commit ${GITHUB_SHA}" > DEPLOY.md.txt
+
+      - name: Publicar en la rama gh-pages
+        run: |
+          cd build/web
+          git init -q
+          git checkout -q -b gh-pages
+          git add -A
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -q -m "Deploy ${GITHUB_SHA}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:gh-pages
+
+      - name: Resumen
+        run: |
+          echo "Sitio publicado en:"
+          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"

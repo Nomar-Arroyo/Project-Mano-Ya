@@ -1,0 +1,440 @@
+{
+  "name": "Mano Ya - Reportes",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "reportes",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000001",
+      "name": "Webhook Reportes",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -820,
+        0
+      ],
+      "webhookId": "a1000000-0000-4000-8000-0000000000a1",
+      "notes": "Punto de entrada. La app Flutter y el trigger de Supabase (reports_notify_n8n) envian aqui el reporte. URL final: https://<TU-N8N>/webhook/reportes"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "categoria-01",
+              "leftValue": "={{ $json.body.categoria || $json.body.reporte?.categoria || '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "motivo-02",
+              "leftValue": "={{ $json.body.motivo || $json.body.reporte?.motivo || '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "correo-03",
+              "leftValue": "={{ $json.body.correo || $json.body.reporte?.correo || $json.body.reporter_email || $json.body.reporte?.reporter_email || '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000002",
+      "name": "Validar Reporte",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -580,
+        0
+      ],
+      "notes": "Exige categoria, motivo y correo del reportante. Si falta alguno, el flujo responde con ok=false sin llamar a la Edge Function."
+    },
+    {
+      "parameters": {
+        "url": "{{SUPABASE_URL}}/rest/v1/reports",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "select",
+              "value": "id"
+            },
+            {
+              "name": "id",
+              "value": "={{ 'eq.' + ($('Webhook Reportes').first().json.body.id || '') }}"
+            },
+            {
+              "name": "limit",
+              "value": "1"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "{{SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{SUPABASE_SERVICE_ROLE_KEY}}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000008",
+      "name": "Consultar reporte en Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -340,
+        0
+      ],
+      "disabled": true,
+      "onError": "continue",
+      "notes": "NODO OPCIONAL, desactivado por defecto. Consulta el reporte en la tabla public.reports usando la service role key. Sirve para endurecer el webhook (comprobar que el reporte existe de verdad antes de avisar a soporte). Para activarlo: 1) sustituye {{SUPABASE_URL}} y {{SUPABASE_SERVICE_ROLE_KEY}}, 2) activa el nodo y 3) anade un nodo IF que compruebe que la respuesta trae una fila (por ejemplo {{ $json.length }} > 0) para decidir si se envia el correo."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "{{SUPABASE_URL}}/functions/v1/notify-report",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-webhook-secret",
+              "value": "{{N8N_WEBHOOK_SECRET}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ reporte: $('Webhook Reportes').first().json.body }) }}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000003",
+      "name": "Enviar correo (Edge Function)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -100,
+        0
+      ],
+      "onError": "continue",
+      "retryOnFail": false,
+      "notes": "Llama a la Edge Function notify-report de Supabase, que envia el correo con Resend. Sustituye los marcadores {{SUPABASE_URL}} y {{N8N_WEBHOOK_SECRET}} por los valores reales (o por expresiones $vars)."
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "sheetId": "{{GOOGLE_SHEETS_ID}}",
+        "sheetName": "Reportes",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": [
+            {
+              "id": "col-id",
+              "name": "id",
+              "value": "={{ $('Webhook Reportes').first().json.body.id }}"
+            },
+            {
+              "id": "col-categoria",
+              "name": "categoria",
+              "value": "={{ $('Webhook Reportes').first().json.body.categoria }}"
+            },
+            {
+              "id": "col-severidad",
+              "name": "severidad",
+              "value": "={{ $('Webhook Reportes').first().json.body.severidad }}"
+            },
+            {
+              "id": "col-motivo",
+              "name": "motivo",
+              "value": "={{ $('Webhook Reportes').first().json.body.motivo }}"
+            },
+            {
+              "id": "col-detalle",
+              "name": "detalle",
+              "value": "={{ $('Webhook Reportes').first().json.body.detalle }}"
+            },
+            {
+              "id": "col-reporta",
+              "name": "reporta",
+              "value": "={{ $('Webhook Reportes').first().json.body.reporta }}"
+            },
+            {
+              "id": "col-correo",
+              "name": "correo",
+              "value": "={{ $('Webhook Reportes').first().json.body.correo }}"
+            },
+            {
+              "id": "col-reportado",
+              "name": "reportado",
+              "value": "={{ $('Webhook Reportes').first().json.body.reportado }}"
+            },
+            {
+              "id": "col-servicio",
+              "name": "servicio_id",
+              "value": "={{ $('Webhook Reportes').first().json.body.servicio_id }}"
+            },
+            {
+              "id": "col-creado",
+              "name": "creado",
+              "value": "={{ $('Webhook Reportes').first().json.body.creado }}"
+            }
+          ],
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "col-id",
+              "name": "id",
+              "type": "string",
+              "matchingColumn": false
+            },
+            {
+              "id": "col-categoria",
+              "name": "categoria",
+              "type": "string",
+              "matchingColumn": false
+            },
+            {
+              "id": "col-severidad",
+              "name": "severidad",
+              "type": "string",
+              "matchingColumn": false
+            },
+            {
+              "id": "col-motivo",
+              "name": "motivo",
+              "type": "string",
+              "matchingColumn": false
+            },
+            {
+              "id": "col-detalle",
+              "name": "detalle",
+              "type": "string",
+              "matchingColumn": false
+            },
+            {
+              "id": "col-reporta",
+              "name": "reporta",
+              "type": "string",
+              "matchingColumn": false
+            },
+            {
+              "id": "col-correo",
+              "name": "correo",
+              "type": "string",
+              "matchingColumn": false
+            },
+            {
+              "id": "col-reportado",
+              "name": "reportado",
+              "type": "string",
+              "matchingColumn": false
+            },
+            {
+              "id": "col-servicio",
+              "name": "servicio_id",
+              "type": "string",
+              "matchingColumn": false
+            },
+            {
+              "id": "col-creado",
+              "name": "creado",
+              "type": "string",
+              "matchingColumn": false
+            }
+          ],
+          "tryToMatchFields": false
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000004",
+      "name": "Apend report (Google Sheets)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        160,
+        -140
+      ],
+      "disabled": true,
+      "onError": "continue",
+      "notes": "NODO OPCIONAL, desactivado por defecto. Para activarlo: 1) crea una hoja de calculo de Google con una pestana llamada 'Reportes' y una fila de encabezados con estos nombres: id, categoria, severidad, motivo, detalle, reporta, correo, reportado, servicio_id, creado. 2) Crea la credencial 'Google Sheets' (Service Account o OAuth) y seleccionala en este nodo. 3) Sustituye {{GOOGLE_SHEETS_ID}} por el identificador de la hoja (esta en la URL: .../spreadsheets/d/ID_AQUI/edit). 4) Activa el nodo."
+    },
+    {
+      "parameters": {
+        "authentication": "none",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "{{SLACK_CHANNEL_ID}}",
+          "mode": "id"
+        },
+        "text": "=':rotating_light: *Nuevo reporte de Mano Ya*\\n\\n*Categoria*: ' + ($('Webhook Reportes').first().json.body.categoria || '') + '\\n*Motivo*: ' + ($('Webhook Reportes').first().json.body.motivo || '') + '\\n*Reporta*: ' + ($('Webhook Reportes').first().json.body.reporta || '') + '\\n*Correo*: ' + ($('Webhook Reportes').first().json.body.correo || '') + '\\n*Detalle*: ' + ($('Webhook Reportes').first().json.body.detalle || '')",
+        "otherOptions": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000005",
+      "name": "Avisar a soporte (Slack)",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        160,
+        140
+      ],
+      "disabled": true,
+      "onError": "continue",
+      "notes": "NODO OPCIONAL, desactivado por defecto. Para activarlo: 1) crea una app en https://api.slack.com/apps con el permiso chat:write y asignala al workspace, 2) en n8n crea la credencial 'Slack API' con el bot token (xoxb-...), 3) selecciona esa credencial en este nodo, 4) sustituye {{SLACK_CHANNEL_ID}} por el ID del canal (en Slack, abrir el canal > mas > copiar identificador) y 5) activa el nodo."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: $('Enviar correo (Edge Function)').first().json.ok === true, id: $('Enviar correo (Edge Function)').first().json.id || '', mensaje: $('Enviar correo (Edge Function)').first().json.ok === true ? 'Reporte recibido y enviado a soporte.' : 'Reporte registrado, pero la notificacion a soporte fallo. Revisalo en el panel de n8n.' }) }}",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000006",
+      "name": "Responder reporte",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        0
+      ],
+      "notes": "Responde { ok, id, mensaje } a quien llamo al webhook."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, id: '', mensaje: 'Reporte incompleto: se requieren categoria, motivo y correo del reportante.' }) }}",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000007",
+      "name": "Responder error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -340,
+        260
+      ],
+      "notes": "Respuesta cuando el reporte no cumple los campos obligatorios."
+    }
+  ],
+  "connections": {
+    "Webhook Reportes": {
+      "main": [
+        [
+          {
+            "node": "Validar Reporte",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Reporte": {
+      "main": [
+        [
+          {
+            "node": "Consultar reporte en Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar reporte en Supabase": {
+      "main": [
+        [
+          {
+            "node": "Enviar correo (Edge Function)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar correo (Edge Function)": {
+      "main": [
+        [
+          {
+            "node": "Apend report (Google Sheets)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apend report (Google Sheets)": {
+      "main": [
+        [
+          {
+            "node": "Avisar a soporte (Slack)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avisar a soporte (Slack)": {
+      "main": [
+        [
+          {
+            "node": "Responder reporte",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "mano-ya"
+    }
+  ]
+}

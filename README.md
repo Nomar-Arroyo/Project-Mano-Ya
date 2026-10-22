@@ -177,7 +177,7 @@ El esquema completo (tablas, RLS, triggers y buckets de Storage) está en
 `supabase/README.md`:
 
 ```bash
-supabase link --project-ref buigphvixacedrcpursh
+supabase link --project-ref waxypsqomsljcljdqwra
 supabase db push
 ```
 
@@ -208,7 +208,7 @@ de cobro, direcciones y favoritos) funciona con ambos modos.
 - **Imágenes en Supabase Storage**: avatar y portafolio se suben a los buckets
   `avatars` y `portfolios`.
 - **Esquema de base de datos listo** en `supabase/migrations/`: falta aplicarlo
-  en el proyecto `buigphvixacedrcpursh` para que el catálogo, los trabajos y
+  en el proyecto `waxypsqomsljcljdqwra` para que el catálogo, los trabajos y
   los cobros dejen de usar datos mock.
 - MFA/2FA requiere configuración adicional en Supabase.
 

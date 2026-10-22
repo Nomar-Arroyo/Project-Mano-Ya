@@ -1,0 +1,117 @@
+{
+  "name": "Mano Ya - Mantenimiento diario",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 3 * * *"
+            }
+          ]
+        }
+      },
+      "id": "b2000000-0000-4000-8000-000000000001",
+      "name": "Disparador diario",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -360,
+        0
+      ],
+      "notes": "Se ejecuta todos los dias a las 03:30 (hora del servidor de n8n). Si tu n8n esta en UTC, ajusta la expresion cron."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "{{SUPABASE_URL}}/rest/v1/rpc/run_maintenance",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "apikey",
+              "value": "{{SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{SUPABASE_SERVICE_ROLE_KEY}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "b2000000-0000-4000-8000-000000000002",
+      "name": "Ejecutar run_maintenance",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -100,
+        0
+      ],
+      "onError": "continue",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "notes": "Llama a la RPC public.run_maintenance() por el endpoint REST de Supabase. Necesita la service role key (clave secreta) porque la funcion ignora RLS. Sustituye {{SUPABASE_URL}} y {{SUPABASE_SERVICE_ROLE_KEY}} por los valores reales."
+    },
+    {
+      "parameters": {
+        "jsCode": "const entrada = $input.first().json;\nconst ok = entrada.error === undefined && entrada.code === undefined;\nreturn [\n  {\n    json: {\n      ok,\n      fecha: new Date().toISOString(),\n      detalle: ok\n        ? 'Mantenimiento ejecutado correctamente.'\n        : 'Error al ejecutar el mantenimiento: ' + JSON.stringify(entrada),\n    },\n  },\n];"
+      },
+      "id": "b2000000-0000-4000-8000-000000000003",
+      "name": "Resumir ejecucion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        0
+      ],
+      "notes": "Deja un resumen legible de la ejecucion. Puedes conectar aqui un nodo de Slack o de correo si quieres recibir un aviso cuando falle."
+    }
+  ],
+  "connections": {
+    "Disparador diario": {
+      "main": [
+        [
+          {
+            "node": "Ejecutar run_maintenance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ejecutar run_maintenance": {
+      "main": [
+        [
+          {
+            "node": "Resumir ejecucion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "mano-ya"
+    }
+  ]
+}

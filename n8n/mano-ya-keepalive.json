@@ -1,0 +1,158 @@
+{
+  "name": "Mano Ya - Keep alive del proyecto Supabase",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 12
+            }
+          ]
+        }
+      },
+      "id": "c3000000-0000-4000-8000-000000000001",
+      "name": "Cada 12 horas",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -360,
+        0
+      ],
+      "notes": "Cada 12 horas se hace una peticion GET a la API REST de Supabase. El proyecto gratuito de Supabase se pausa tras 7 dias sin actividad: una peticion HTTP cuenta como actividad, asi que esto lo mantiene vivo. Ajusta el intervalo si tu plan lo permite."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{SUPABASE_URL}}/rest/v1/profiles?select=id&limit=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "{{SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Prefer",
+              "value": "count=exact"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "c3000000-0000-4000-8000-000000000002",
+      "name": "GET profiles",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -100,
+        0
+      ],
+      "onError": "continue",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "notes": "Peticion GET de solo lectura contra la API REST. Usa la clave publica (publishable/anon): basta para leer y cuenta como actividad. Sustituye {{SUPABASE_URL}} y {{SUPABASE_ANON_KEY}} por los valores reales."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{SUPABASE_URL}}/rest/v1/jobs?select=id&limit=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "{{SUPABASE_ANON_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer {{SUPABASE_ANON_KEY}}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "c3000000-0000-4000-8000-000000000003",
+      "name": "GET jobs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -100,
+        200
+      ],
+      "onError": "continue",
+      "notes": "Segunda peticion GET de respaldo: si la primera falla por un detalle de la tabla, esta mantiene la actividad del proyecto."
+    },
+    {
+      "parameters": {
+        "jsCode": "const peticion = $input.first().json;\nconst ok = peticion.error === undefined && peticion.code === undefined;\nreturn [\n  {\n    json: {\n      ok,\n      fecha: new Date().toISOString(),\n      proyecto: 'Mano Ya',\n      mensaje: ok\n        ? 'Proyecto activo: la peticion GET a Supabase fue exitosa.'\n        : 'La peticion GET fallo: ' + JSON.stringify(peticion).slice(0, 300),\n    },\n  },\n];"
+      },
+      "id": "c3000000-0000-4000-8000-000000000004",
+      "name": "Resumir keep alive",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        180,
+        0
+      ],
+      "notes": "Resumen de la ejecucion. Conecta aqui un nodo de correo o de Slack si quieres enterarte cuando el proyecto sepause."
+    }
+  ],
+  "connections": {
+    "Cada 12 horas": {
+      "main": [
+        [
+          {
+            "node": "GET profiles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET profiles": {
+      "main": [
+        [
+          {
+            "node": "GET jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET jobs": {
+      "main": [
+        [
+          {
+            "node": "Resumir keep alive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "executionTimeout": 120
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "mano-ya"
+    }
+  ]
+}

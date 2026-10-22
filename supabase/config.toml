@@ -1,0 +1,34 @@
+# ======================================================================
+# Mano Ya · Configuracion de Supabase (CLI)
+# ----------------------------------------------------------------------
+# Archivo minimo para que la Supabase CLI reconoce el proyecto y la
+# Edge Function `notify-report`.
+#
+# Comandos utiles:
+#   supabase link --project-ref waxypsqomsljcljdqwra
+#   supabase functions deploy notify-report --no-verify-jwt
+#   supabase secrets set RESEND_API_KEY=... N8N_WEBHOOK_SECRET=... SUPPORT_EMAIL=...
+# ======================================================================
+
+project_id = "mano-ya"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+major_version = 15
+
+# ----------------------------------------------------------------------
+# Edge Function que envia los reportes por correo (Resend).
+#
+# verify_jwt = false porque la llamada la hace n8n con su propio secreto
+# (`x-webhook-secret` -> variable de entorno N8N_WEBHOOK_SECRET), no con
+# el JWT de Supabase. La funcion rechaza cualquier peticion que no
+# incluya ese secreto.
+# ----------------------------------------------------------------------
+[functions.notify-report]
+verify_jwt = false

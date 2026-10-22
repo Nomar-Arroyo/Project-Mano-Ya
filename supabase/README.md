@@ -1,7 +1,7 @@
 # Base de datos de Mano Ya (Supabase)
 
 Esta carpeta contiene el esquema de la base de datos y los datos iniciales del
-proyecto `buigphvixacedrcpursh`.
+proyecto `waxypsqomsljcljdqwra`.
 
 ## Archivos
 
@@ -15,13 +15,13 @@ proyecto `buigphvixacedrcpursh`.
 **Opción 1 · Supabase CLI (recomendado)**
 
 ```bash
-supabase link --project-ref buigphvixacedrcpursh
+supabase link --project-ref waxypsqomsljcljdqwra
 supabase db push
 ```
 
 **Opción 2 · Panel de Supabase**
 
-1. Entrar al proyecto `buigphvixacedrcpursh` en <https://supabase.com/dashboard>.
+1. Entrar al proyecto `waxypsqomsljcljdqwra` en <https://supabase.com/dashboard>.
 2. Abrir **SQL Editor → New query**.
 3. Pegar y ejecutar primero `20240101000000_init_schema.sql`.
 4. Pegar y ejecutar después `20240101000100_seed_catalogo.sql`.

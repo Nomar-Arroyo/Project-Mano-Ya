@@ -1,0 +1,47 @@
+# =====================================================================
+# Mano Ya · Configuracion de Netlify
+# ---------------------------------------------------------------------
+# Publica la version web de la app en Netlify.
+#
+# 1. En Netlify: "Add new site" -> "Import an existing project" y elige
+#    este repositorio de GitHub.
+# 2. Build command y Publish directory quedan definidos aqui, pero las
+#    variables de entorno hay que crearlas en el panel:
+#    Site configuration -> Environment variables -> Add variable.
+# 3. Variables necesarias:
+#      SUPABASE_URL             https://waxypsqomsljcljdqwra.supabase.co
+#      SUPABASE_ANON_KEY        sb_publishable_...
+#      GOOGLE_CLIENT_ID         (opcional) client id de la app web
+#      GOOGLE_SERVER_CLIENT_ID  (opcional) client id de tipo web
+#      WEB_APP_URL              https://tu-sitio.netlify.app
+#      N8N_WEBHOOK_URL          (opcional) https://tu-n8n/webhook/reportes
+#      SUPPORT_EMAIL            soporte@manoya.app
+# =====================================================================
+
+[build]
+  publish = "build/web"
+  command = "flutter build web --release --base-href=\"/\" --dart-define=SUPABASE_URL=$SUPABASE_URL --dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY --dart-define=GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID --dart-define=GOOGLE_SERVER_CLIENT_ID=$GOOGLE_SERVER_CLIENT_ID --dart-define=WEB_APP_URL=$WEB_APP_URL --dart-define=N8N_WEBHOOK_URL=$N8N_WEBHOOK_URL --dart-define=SUPPORT_EMAIL=$SUPPORT_EMAIL"
+
+[build.environment]
+  FLUTTER_VERSION = "3.47.7"
+  NODE_VERSION = "20"
+
+# Redireccion de la PWA: cualquier ruta interna devuelve el index.html
+# para que el enrutamiento de Flutter funcione al recargar o al abrir un
+# enlace profundo.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# El service worker y el manifiesto nunca se cachean para que las
+# actualizaciones de la app se descargen al instante.
+[[headers]]
+  for = "/flutter_service_worker.js"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"

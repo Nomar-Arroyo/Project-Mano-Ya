@@ -49,3 +49,16 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Firma de la app: la clave privada y sus propiedades nunca se suben a Git.
+android/key.properties
+*.jks
+*.keystore
+
+# Credenciales de servicios externos: nunca se suben a Git.
+client_secret.json
+*_client_secret.json
+service-account*.json
+firebase-adminsdk*.json
+.vercel/
+n8n_data/

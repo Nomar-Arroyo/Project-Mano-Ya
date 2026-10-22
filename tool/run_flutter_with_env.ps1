@@ -54,6 +54,12 @@ if (-not (Get-Command flutter -ErrorAction SilentlyContinue)) {
 $googleClientId = $values['GOOGLE_CLIENT_ID']
 $googleServerClientId = $values['GOOGLE_SERVER_CLIENT_ID']
 
+# Variables opcionales de la app. Si no vienen en el .env, la app usa sus
+# valores por defecto (o funciona sin webhook de n8n).
+$webAppUrl = $values['WEB_APP_URL']
+$n8nWebhookUrl = $values['N8N_WEBHOOK_URL']
+$supportEmail = $values['SUPPORT_EMAIL']
+
 $defines = @(
   "--dart-define=SUPABASE_URL=$supabaseUrl"
   "--dart-define=SUPABASE_ANON_KEY=$supabaseKey"
@@ -64,6 +70,15 @@ if (-not [string]::IsNullOrWhiteSpace($googleClientId)) {
 }
 if (-not [string]::IsNullOrWhiteSpace($googleServerClientId)) {
   $defines += "--dart-define=GOOGLE_SERVER_CLIENT_ID=$googleServerClientId"
+}
+if (-not [string]::IsNullOrWhiteSpace($webAppUrl)) {
+  $defines += "--dart-define=WEB_APP_URL=$webAppUrl"
+}
+if (-not [string]::IsNullOrWhiteSpace($n8nWebhookUrl)) {
+  $defines += "--dart-define=N8N_WEBHOOK_URL=$n8nWebhookUrl"
+}
+if (-not [string]::IsNullOrWhiteSpace($supportEmail)) {
+  $defines += "--dart-define=SUPPORT_EMAIL=$supportEmail"
 }
 
 & flutter $Command @FlutterArgs @defines
