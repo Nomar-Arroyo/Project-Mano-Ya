@@ -74,12 +74,8 @@ if (-not (Get-Command flutter -ErrorAction SilentlyContinue)) {
 $googleClientId = $values['GOOGLE_CLIENT_ID']
 $googleServerClientId = $values['GOOGLE_SERVER_CLIENT_ID']
 
-# Variables opcionales de la app. Si no vienen en el .env, la app usa sus
-# valores por defecto (o funciona sin webhook de n8n).
+# Variables públicas opcionales de la app.
 $webAppUrl = $values['WEB_APP_URL']
-$n8nWebhookUrl = $values['N8N_WEBHOOK_URL']
-$supportEmail = $values['SUPPORT_EMAIL']
-$n8nWebhookSecret = $values['N8N_WEBHOOK_SECRET']
 
 $defines = @(
   "--dart-define=SUPABASE_URL=$supabaseUrl"
@@ -94,30 +90,6 @@ if (-not [string]::IsNullOrWhiteSpace($googleServerClientId)) {
 }
 if (-not [string]::IsNullOrWhiteSpace($webAppUrl)) {
   $defines += "--dart-define=WEB_APP_URL=$webAppUrl"
-}
-if (-not [string]::IsNullOrWhiteSpace($n8nWebhookUrl)) {
-  $defines += "--dart-define=N8N_WEBHOOK_URL=$n8nWebhookUrl"
-}
-if (-not [string]::IsNullOrWhiteSpace($supportEmail)) {
-  $defines += "--dart-define=SUPPORT_EMAIL=$supportEmail"
-}
-if (-not [string]::IsNullOrWhiteSpace($n8nWebhookSecret)) {
-  # El secreto solo se inyecta en las versiones moviles. En la web el bundle
-  # es publico y cualquiera podria leer el valor del JavaScript; ahi la app
-  # se autentica con la sesion del usuario y la Edge Function valida la
-  # peticion en el servidor.
-  $esWeb = $false
-  foreach ($arg in $FlutterArgs) {
-    if ($arg -eq 'web' -or $arg -eq 'web-server' -or $arg -like 'web-*') {
-      $esWeb = $true
-    }
-  }
-  if ($esWeb) {
-    Write-Host 'Version web: no se inyecta N8N_WEBHOOK_SECRET (el bundle es publico).' -ForegroundColor Yellow
-  }
-  else {
-    $defines += "--dart-define=N8N_WEBHOOK_SECRET=$n8nWebhookSecret"
-  }
 }
 
 & flutter $Command @FlutterArgs @defines

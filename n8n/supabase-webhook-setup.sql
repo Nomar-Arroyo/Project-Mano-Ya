@@ -9,12 +9,11 @@
 --      del webhook de n8n de forma parametrica.
 --   2. Verifica que el trigger `reports_notify_n8n` exista y lo recrea
 --      si falta o quedo desactualizado.
---   3. Muestra una prueba que inserta un reporte de ejemplo y confirma
---      que el campo `notified_at` quedo relleno (o sea: que el trigger
---      disparo y que la URL del webhook esta configurada).
+--   3. Muestra como verificar la configuración sin insertar ni borrar
+--      registros de usuarios.
 --
--- IMPORTANTE: sustituye `https://TU-N8N/webhook/reportes` por la URL
--- real de tu instancia de n8n antes de ejecutar la seccion 2.
+-- IMPORTANTE: sustituye `https://TU-N8N/webhook/reportes` y el secreto de
+-- ejemplo por los valores reales antes de ejecutar las secciones 2 y 3.
 -- =====================================================================
 
 create extension if not exists pg_net;
@@ -28,11 +27,18 @@ create extension if not exists pg_cron;
 create or replace function public.set_n8n_webhook(p_url text)
 returns text
 language plpgsql
-security definer set search_path = public
+security definer set search_path = pg_catalog, public
 as $$
 declare
   v_url text := coalesce(btrim(p_url), '');
 begin
+  if v_url <> '' and v_url !~ '^https://[^[:space:]]+$' then
+    raise exception 'La URL del webhook debe usar HTTPS';
+  end if;
+  if position('tu-n8n' in lower(v_url)) > 0 then
+    raise exception 'Reemplaza la URL de ejemplo por la URL real de n8n';
+  end if;
+
   insert into public.app_settings (key, value, updated_at)
   values ('n8n_report_webhook', v_url, now())
   on conflict (key) do update
@@ -41,6 +47,9 @@ begin
   return v_url;
 end;
 $$;
+
+revoke all on function public.set_n8n_webhook(text) from public, anon, authenticated;
+grant execute on function public.set_n8n_webhook(text) to postgres;
 
 comment on function public.set_n8n_webhook(text) is
   'Guarda la URL del webhook de n8n que usa el trigger reports_notify_n8n.';
@@ -52,6 +61,16 @@ comment on function public.set_n8n_webhook(text) is
 --   https://manoya-n8n.up.railway.app/webhook/reportes
 --   https://n8n.midominio.com/webhook/reportes
 select public.set_n8n_webhook('https://TU-N8N/webhook/reportes') as webhook_configurado;
+
+-- Guarda el mismo secreto configurado como Header Auth en n8n.
+-- Sustituye el marcador antes de ejecutar; no guardes aquí un secreto real
+-- en Git. Ejecuta este bloque desde el SQL Editor de Supabase.
+--
+-- insert into public.app_settings (key, value, updated_at)
+-- values ('n8n_webhook_secret', '<SECRETO_ALEATORIO>', now())
+-- on conflict (key) do update
+--   set value = excluded.value,
+--       updated_at = now();
 
 -- Equivalente con una instruccion UPDATE directa (alternativa):
 --
@@ -82,10 +101,12 @@ where t.tgrelid = 'public.reports'::regclass
 create or replace function public.notify_new_report()
 returns trigger
 language plpgsql
-security definer set search_path = public
+security definer set search_path = pg_catalog, public
 as $$
 declare
   webhook text;
+  webhook_secret text;
+  request_headers jsonb;
 begin
   select value into webhook
   from public.app_settings
@@ -95,10 +116,20 @@ begin
     return new;
   end if;
 
+  select value into webhook_secret
+  from public.app_settings
+  where key = 'n8n_webhook_secret';
+
+  request_headers := jsonb_build_object('Content-Type', 'application/json');
+  if webhook_secret is not null and webhook_secret <> '' then
+    request_headers := request_headers
+      || jsonb_build_object('x-webhook-secret', webhook_secret);
+  end if;
+
   -- La llamada es asincrona: no bloquea la insercion del reporte.
   perform net.http_post(
     url     := webhook,
-    headers := jsonb_build_object('Content-Type', 'application/json'),
+    headers := request_headers,
     body    := jsonb_build_object(
       'evento',       'nuevo_reporte',
       'id',           new.id,
@@ -139,52 +170,18 @@ where t.tgrelid = 'public.reports'::regclass
   and not t.tgisinternal;
 
 -- ---------------------------------------------------------------------
--- 4. Prueba de extremo a extremo
+-- 4. Verificar el estado de los reportes existentes
 -- ---------------------------------------------------------------------
--- Inserta un reporte de ejemplo. El trigger debe:
-//   a) enviar el POST a la URL de n8n guardada en app_settings
---   b) rellenar `notified_at`
--- Ejecuta este bloque por separado del resto para poder ver el resultado.
-
-insert into public.reports (
-  reporter_name,
-  reporter_email,
-  target_name,
-  category,
-  reason,
-  details,
-  severity,
-  status
-)
-values (
-  'Prueba automatica',
-  'prueba@manoya.app',
-  'Trabajador de prueba',
-  'calidad',
-  'Reporte de prueba del setup de n8n',
-  'Este reporte lo genero n8n/supabase-webhook-setup.sql para comprobar que el trigger notifica a n8n.',
-  'baja',
-  'abierto'
-)
-returning id, category, reason, notified_at;
-
--- Si la columna `notified_at` viene con una fecha, el trigger funciono y
--- la URL del webhook esta guardada. Si viene NULL, revisa que la URL
--- este escrita en app_settings y que el trigger este habilitado.
+-- `notified_at` significa que el POST fue encolado por pg_net; no certifica
+-- que n8n ejecutó el workflow ni que el correo fue entregado.
 select
   id,
   category,
-  reason,
-  created_at,
   notified_at,
-  (notified_at is not null) as notificado_ok
+  (notified_at is not null) as webhook_encolado
 from public.reports
-where reporter_email = 'prueba@manoya.app'
 order by created_at desc
-limit 1;
-
--- Limpieza opcional de la prueba:
---   delete from public.reports where reporter_email = 'prueba@manoya.app';
+limit 20;
 
 -- ---------------------------------------------------------------------
 -- 5. Estado final del cron de mantenimiento

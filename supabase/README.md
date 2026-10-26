@@ -8,23 +8,29 @@ proyecto `waxypsqomsljcljdqwra`.
 | Archivo | Contenido |
 | --- | --- |
 | `migrations/20240101000000_init_schema.sql` | Tablas, índices, políticas RLS, triggers y buckets de Storage. |
-| `migrations/20240101000100_seed_catalogo.sql` | Los 6 oficios del catálogo y los trabajadores de ejemplo. |
+| `migrations/20240101000100_seed_catalogo.sql` | Catálogo y perfiles sintéticos, sin teléfonos ni reseñas inventadas. |
+| `migrations/20240101000200_reportes_y_automatizacion.sql` | Reportes, notificación y mantenimiento. |
+| `migrations/20240101000300_workers_perfil_unico.sql` | Una ficha de catálogo por perfil. |
+| `migrations/20240101000400_historial_trabajos.sql` | Escritura del historial de servicios. |
+| `migrations/20240101000500_webhook_secret.sql` | Secreto del webhook de reportes. |
+| `migrations/20261025000000_backend_security_and_booking.sql` | Protección de datos, catálogo, citas, cobros, reportes, Storage y cuota de IA. |
+| `functions/recommend-workers/index.ts` | Edge Function opcional para clasificar solicitudes con Ollama y consultar trabajadores reales. |
 
 ## Cómo aplicarlo
 
-**Opción 1 · Supabase CLI (recomendado)**
+**Supabase CLI (recomendado)**
 
 ```bash
 supabase link --project-ref waxypsqomsljcljdqwra
 supabase db push
 ```
 
-**Opción 2 · Panel de Supabase**
-
-1. Entrar al proyecto `waxypsqomsljcljdqwra` en <https://supabase.com/dashboard>.
-2. Abrir **SQL Editor → New query**.
-3. Pegar y ejecutar primero `20240101000000_init_schema.sql`.
-4. Pegar y ejecutar después `20240101000100_seed_catalogo.sql`.
+No ejecutes de nuevo manualmente migraciones ya aplicadas. La migración de
+seguridad revisa si hay citas activas duplicadas en el mismo instante; si las
+encuentra se detiene y requiere una resolución revisada, no borra registros.
+La restricción solo evita dos trabajos aceptados/en curso con la misma fecha y
+hora exacta; no modela duración ni rangos de solapamiento porque el esquema
+actual no define la duración de los servicios.
 
 ## Qué incluye el esquema
 
@@ -39,9 +45,55 @@ supabase db push
 
 ## Seguridad
 
-- Todas las tablas tienen **RLS** activado: cada usuario solo escribe en sus
-  propias filas y solo ve los trabajos, cobros y cuotas en los que participa.
-- El `role` (cliente/trabajador) no se puede cambiar desde la aplicación: solo
-  un administrador del proyecto puede modificarlo.
-- Los buckets `avatars` y `portfolios` son públicos para lectura, pero cada
-  usuario solo puede escribir en la carpeta con su propio `user_id`.
+- `profiles` contiene datos privados de pago y solo se puede leer por su dueño;
+  la ficha pública se obtiene desde `workers`.
+- `workers` publica únicamente perfiles vinculados a una cuenta trabajadora y
+  con oficio, subcategoría y ciudad. El usuario no puede asignarse insignias,
+  valoraciones o contadores de reseñas.
+- Los teléfonos aceptados al crear o actualizar perfiles se normalizan a
+  E.164 (`+584...`) y se validan como móviles venezolanos.
+- Los trabajos y cobros validan en PostgreSQL quién puede crearlos o avanzar
+  sus estados. Las reseñas se limitan a un trabajo completado y una reseña por
+  trabajo.
+- `app_settings` está bloqueada para `anon` y `authenticated`; el secreto del
+  webhook solo lo usa el trigger de servidor.
+- Los buckets `avatars` y `portfolios` son públicos para lectura. Las escrituras
+  quedan limitadas al directorio del usuario, a imágenes JPEG/PNG/WebP y 10 MB.
+- Las ubicaciones de catálogo se redondean a dos decimales (~1 km) para no
+  publicar coordenadas precisas.
+- Los perfiles sintéticos de la migración de catálogo están rotulados como demo,
+  no tienen teléfono ni reseñas y no se recomiendan como proveedores reales.
+- No se ejecutó ninguna migración contra una base remota desde este cambio.
+
+### Asistente con Ollama (opcional)
+
+La función `recommend-workers` requiere que Ollama sea accesible desde la red
+de Supabase Edge Functions. No uses la dirección `localhost` de una computadora
+ni expongas el servidor de Ollama a Internet. Configura una instancia privada o
+un endpoint HTTPS protegido y guarda únicamente su URL y el nombre del modelo
+como secretos de Edge Functions:
+
+```bash
+supabase secrets set OLLAMA_BASE_URL=https://ollama.example.internal OLLAMA_MODEL=llama3.1
+supabase secrets set APP_ORIGIN=https://project-mano-ya-web.vercel.app
+supabase functions deploy recommend-workers
+```
+
+La función requiere una sesión autenticada, limita las solicitudes a 20 por
+usuario por hora y usa Ollama solo para interpretar la categoría. Los
+trabajadores devueltos se consultan desde `workers` con las políticas RLS del
+usuario; no se envían coordenadas precisas al modelo ni se generan perfiles,
+precios, distancias o reseñas.
+
+La migración crea el RPC de cuota `consume_ai_recommendation_quota`. Aplica la
+migración antes de desplegar la función. Si Ollama no está configurado, la
+función responde `503`; no simula recomendaciones.
+
+### MFA y OAuth
+
+La aplicación usa factores TOTP nativos de Supabase Auth. La política de nivel
+de aseguramiento (AAL) y los proveedores OAuth deben configurarse y verificarse
+en el Dashboard de Supabase y Google Cloud Console, incluidos los redirect URLs
+de producción. Este repositorio no tiene acceso a esas consolas y no contiene
+una implementación de MFA por correo; no se debe presentar un código enviado
+por correo como MFA sin validación y control de un solo uso en servidor.

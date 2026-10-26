@@ -26,7 +26,8 @@ on conflict (slug) do update
       position = excluded.position;
 
 -- ---------------------------------------------------------------------
--- 2. Trabajadores de ejemplo para el catálogo
+-- 2. Perfiles sintéticos de demostración para el catálogo.
+-- No son proveedores reales: no incluyen teléfonos, reseñas ni verificaciones.
 -- ---------------------------------------------------------------------
 insert into public.workers (
   name, category, subcategory, city, bio, phone,
@@ -35,39 +36,39 @@ insert into public.workers (
 )
 select
   seed.name, seed.category, seed.subcategory, seed.city, seed.bio, seed.phone,
-  seed.rating, seed.reviews_count, true, true,
+  seed.rating, seed.reviews_count, false, false,
   seed.status, seed.latitude, seed.longitude
 from (
   values
     (
-      'Carlos Ramírez', 'Construcción', 'Albañil', 'Caracas, Distrito Capital',
-      'Maestro de obra con 15 años de experiencia en mampostería, pañetes y acabados. Trabajos garantizados y puntuales.',
-      '+58 412 111 2233', 4.80, 42, 'available', 10.4806, -66.9036
+      'Demo - Albañilería', 'Construcción', 'Albañilería', 'Caracas, Distrito Capital',
+      'Perfil sintético para demostración. No representa a un proveedor real.',
+      null::text, 0::numeric, 0, 'available', 10.48, -66.90
     ),
     (
-      'Ana Torres', 'Belleza', 'Manicure', 'Maracay, Aragua',
-      'Especialista en uñas acrílicas, semipermanentes y diseños personalizados. Atención a domicilio.',
-      '+58 412 222 3344', 4.90, 28, 'available', 10.2469, -67.5958
+      'Demo - Manicure', 'Belleza', 'Manicure', 'Maracay, Aragua',
+      'Perfil sintético para demostración. No representa a un proveedor real.',
+      null::text, 0::numeric, 0, 'available', 10.25, -67.60
     ),
     (
-      'Luis Pérez', 'Mantenimiento', 'Electricista', 'Valencia, Carabobo',
-      'Instalaciones eléctricas residenciales, tableros y certificados.',
-      '+58 414 333 4455', 4.70, 15, 'busy', 10.1620, -68.0077
+      'Demo - Electricidad', 'Mantenimiento', 'Electricidad', 'Valencia, Carabobo',
+      'Perfil sintético para demostración. No representa a un proveedor real.',
+      null::text, 0::numeric, 0, 'available', 10.16, -68.01
     ),
     (
-      'María López', 'Costura', 'Modista', 'Caracas, Distrito Capital',
-      'Confección y arreglo de prendas, diseños a medida y servicios de modistería rápida.',
-      '+58 416 444 5566', 4.90, 36, 'available', 10.4806, -66.9036
+      'Demo - Costura', 'Costura', 'Costura', 'Caracas, Distrito Capital',
+      'Perfil sintético para demostración. No representa a un proveedor real.',
+      null::text, 0::numeric, 0, 'available', 10.48, -66.90
     ),
     (
-      'Jorge Silva', 'Automotriz', 'Mecánico', 'Barquisimeto, Lara',
-      'Mecánica general, revisión de frenos, suspensión y mantenimiento preventivo a domicilio.',
-      '+58 424 555 6677', 4.60, 21, 'available', 10.0670, -69.3170
+      'Demo - Mecánica', 'Automotriz', 'Mecánica', 'Barquisimeto, Lara',
+      'Perfil sintético para demostración. No representa a un proveedor real.',
+      null::text, 0::numeric, 0, 'available', 10.07, -69.32
     ),
     (
-      'Diana Ruiz', 'Eventos', 'Decoración', 'Maracaibo, Zulia',
-      'Decoración de eventos, montajes temáticos, globos y ambientación de fiestas.',
-      '+58 426 666 7788', 4.80, 19, 'busy', 10.6427, -71.6125
+      'Demo - Eventos', 'Eventos', 'Decoración', 'Maracaibo, Zulia',
+      'Perfil sintético para demostración. No representa a un proveedor real.',
+      null::text, 0::numeric, 0, 'available', 10.64, -71.61
     )
 ) as seed(
   name, category, subcategory, city, bio, phone,
@@ -77,13 +78,3 @@ where not exists (
   select 1 from public.workers w
   where w.name = seed.name and w.city = seed.city
 );
-
--- ---------------------------------------------------------------------
--- 3. Limpieza de fichas de ejemplo con datos de otros países
--- ---------------------------------------------------------------------
--- Si la base ya traía fichas de otra región, se quitan para que el
--- catálogo se vea coherente con Venezuela.
-delete from public.workers
-where city ilike '%Colombia%'
-   or city ilike '%Valle del Cauca%'
-   or phone like '+57%';

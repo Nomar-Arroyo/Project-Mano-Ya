@@ -8,13 +8,14 @@
 //   { "reporte": { ... } }    -> reporte envuelto
 //   { ...campos planos... }   -> payload directo de la app o del trigger
 //
-// Cabecera obligatoria en todas las peticiones:
+// Autenticacion:
 //   x-webhook-secret: <valor de N8N_WEBHOOK_SECRET>
+//   o una sesion de usuario Supabase valida en Authorization: Bearer <token>
 //
 // Variables de entorno (Supabase -> Edge Functions -> Secrets):
 //   RESEND_API_KEY        clave de la API de Resend (obligatoria)
 //   SUPPORT_EMAIL         correo de soporte que recibe los reportes
-//   N8N_WEBHOOK_SECRET    secreto compartido con n8n (obligatoria)
+//   N8N_WEBHOOK_SECRET    secreto compartido con n8n
 //   RESEND_FROM_EMAIL     remitente del correo (opcional)
 //   WEBHOOK_SECRET_HEADER nombre de la cabecera del secreto (opcional)
 //
@@ -38,6 +39,7 @@ interface ReportData {
   targetId: string;
   jobId: string;
   createdAt: string;
+  notificationQueued: boolean;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -116,6 +118,7 @@ function normalizeReport(raw: JsonRecord): ReportData {
     targetId: pickString(raw, ['reportado_id', 'target_user_id']),
     jobId: pickString(raw, ['servicio_id', 'job_id']),
     createdAt: pickString(raw, ['creado', 'created_at']),
+    notificationQueued: pickString(raw, ['notified_at']) !== '',
   };
 }
 
@@ -218,6 +221,14 @@ interface MailResult {
   error: string;
 }
 
+interface RequestPrincipal {
+  ok: boolean;
+  error: string;
+  source?: 'webhook' | 'user';
+  userId?: string;
+  accessToken?: string;
+}
+
 async function sendEmail(report: ReportData): Promise<MailResult> {
   const apiKey = Deno.env.get('RESEND_API_KEY')?.trim() ?? '';
   if (!apiKey) {
@@ -262,7 +273,7 @@ async function sendEmail(report: ReportData): Promise<MailResult> {
 
 async function checkSecret(
   request: Request,
-): Promise<{ ok: boolean; error: string }> {
+): Promise<RequestPrincipal> {
   const expected = Deno.env.get('N8N_WEBHOOK_SECRET')?.trim() ?? '';
   const headerName = (
     Deno.env.get('WEBHOOK_SECRET_HEADER')?.trim() || 'x-webhook-secret'
@@ -270,7 +281,7 @@ async function checkSecret(
   const provided = (request.headers.get(headerName) ?? '').trim();
 
   if (expected && provided && provided === expected) {
-    return { ok: true, error: '' };
+    return { ok: true, error: '', source: 'webhook' };
   }
 
   // La version web de la app no lleva el secreto (quedaria exposed en el
@@ -287,7 +298,7 @@ async function checkSecret(
 /// Supabase, de modo que solo un usuario con cuenta activa puede reportar.
 async function checkUserSession(
   request: Request,
-): Promise<{ ok: boolean; error: string }> {
+): Promise<RequestPrincipal> {
   const authHeader = (request.headers.get('authorization') ?? '').trim();
   if (!authHeader.toLowerCase().startsWith('bearer ')) {
     return {
@@ -323,7 +334,22 @@ async function checkUserSession(
       return { ok: false, error: 'La sesion del usuario no es valida.' };
     }
 
-    return { ok: true, error: '' };
+    const user: unknown = await response.json();
+    if (
+      !user ||
+      typeof user !== 'object' ||
+      Array.isArray(user) ||
+      typeof (user as JsonRecord)['id'] !== 'string'
+    ) {
+      return { ok: false, error: 'La sesion no contiene un usuario valido.' };
+    }
+    return {
+      ok: true,
+      error: '',
+      source: 'user',
+      userId: (user as JsonRecord)['id'] as string,
+      accessToken: token,
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return {
@@ -331,6 +357,44 @@ async function checkUserSession(
       error: `No se pudo validar la sesion del usuario: ${message}`,
     };
   }
+}
+
+async function loadOwnedReport(
+  reportId: string,
+  userId: string,
+  accessToken: string,
+): Promise<ReportData | null> {
+  const supabaseUrl = (Deno.env.get('SUPABASE_URL') ?? '').trim();
+  const anonKey = (Deno.env.get('SUPABASE_ANON_KEY') ?? '').trim();
+  if (!supabaseUrl || !anonKey) {
+    throw new Error('Falta la configuracion de Supabase para consultar el reporte.');
+  }
+
+  const url = new URL('/rest/v1/reports', supabaseUrl);
+  url.searchParams.set('id', `eq.${reportId}`);
+  url.searchParams.set('reporter_id', `eq.${userId}`);
+  url.searchParams.set(
+    'select',
+    'id,category,severity,reason,details,reporter_name,reporter_email,reporter_id,target_name,target_user_id,job_id,created_at,notified_at',
+  );
+  url.searchParams.set('limit', '1');
+
+  const response = await fetch(url, {
+    headers: {
+      apikey: anonKey,
+      Authorization: `Bearer ${accessToken}`,
+    },
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok) {
+    throw new Error(`No se pudo validar el reporte guardado (${response.status}).`);
+  }
+
+  const rows: unknown = await response.json();
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  const row = rows[0];
+  if (!row || typeof row !== 'object' || Array.isArray(row)) return null;
+  return normalizeReport(row as JsonRecord);
 }
 
 Deno.serve(async (request: Request): Promise<Response> => {
@@ -345,9 +409,9 @@ Deno.serve(async (request: Request): Promise<Response> => {
     });
   }
 
-  const secret = await checkSecret(request);
-  if (!secret.ok) {
-    return respond(401, { ok: false, error: secret.error });
+  const principal = await checkSecret(request);
+  if (!principal.ok) {
+    return respond(401, { ok: false, error: principal.error });
   }
 
   let body: JsonRecord;
@@ -367,7 +431,41 @@ Deno.serve(async (request: Request): Promise<Response> => {
     });
   }
 
-  const report = normalizeReport(extractReport(body));
+  let report = normalizeReport(extractReport(body));
+
+  if (principal.source === 'user') {
+    if (
+      !principal.userId ||
+      !principal.accessToken ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(report.id)
+    ) {
+      return respond(400, {
+        ok: false,
+        error: 'La notificacion requiere un reporte guardado en Mano Ya.',
+      });
+    }
+
+    try {
+      const savedReport = await loadOwnedReport(
+        report.id,
+        principal.userId,
+        principal.accessToken,
+      );
+      if (!savedReport) {
+        return respond(404, {
+          ok: false,
+          error: 'No se encontró un reporte guardado que te pertenezca.',
+        });
+      }
+      report = savedReport;
+    } catch (error) {
+      console.error('No se pudo validar el reporte antes de notificar.', error);
+      return respond(503, {
+        ok: false,
+        error: 'No se pudo verificar el reporte guardado.',
+      });
+    }
+  }
 
   if (!report.category) {
     return respond(400, {
@@ -391,6 +489,28 @@ Deno.serve(async (request: Request): Promise<Response> => {
     return respond(400, {
       ok: false,
       error: 'Falta el campo obligatorio: correo del reportante.',
+    });
+  }
+  if (principal.source === 'user' && report.notificationQueued) {
+    return respond(200, {
+      ok: true,
+      id: report.id,
+      enviado: false,
+      encolado: true,
+      categoria: report.category,
+      severidad: report.severity,
+    });
+  }
+  if (
+    report.reason.length > 200 ||
+    report.details.length > 5000 ||
+    report.reporterName.length > 200 ||
+    report.reporterEmail.length > 320 ||
+    report.targetName.length > 200
+  ) {
+    return respond(400, {
+      ok: false,
+      error: 'El reporte excede la longitud permitida en uno o más campos.',
     });
   }
 

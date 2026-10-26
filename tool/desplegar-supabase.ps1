@@ -9,7 +9,7 @@
       2. `supabase db push` para aplicar las migraciones pendientes
          (por ejemplo la que anade la cabecera `x-webhook-secret` al
          trigger de reportes).
-      3. `supabase functions deploy notify-report --no-verify-jwt`.
+      3. Despliega `notify-report` y `recommend-workers`.
       4. `supabase secrets set` con las variables de entorno de la funcion.
 
     Necesita un Personal Access Token de Supabase
@@ -92,14 +92,20 @@ if (-not $SinMigraciones) {
 Write-Host '3/4 Desplegando la Edge Function notify-report...' -ForegroundColor Cyan
 npx --yes supabase@latest functions deploy notify-report --no-verify-jwt --project-ref $ProjectRef
 if ($LASTEXITCODE -ne 0) { throw 'Fallo el despliegue de la Edge Function.' }
+npx --yes supabase@latest functions deploy recommend-workers --project-ref $ProjectRef
+if ($LASTEXITCODE -ne 0) { throw 'Fallo el despliegue de recommend-workers.' }
 
 Write-Host '4/4 Configurando los secretos de la funcion...' -ForegroundColor Cyan
 $secrets = @{}
 if ($values['N8N_WEBHOOK_SECRET']) { $secrets['N8N_WEBHOOK_SECRET'] = $values['N8N_WEBHOOK_SECRET'] }
 if ($values['SUPPORT_EMAIL']) { $secrets['SUPPORT_EMAIL'] = $values['SUPPORT_EMAIL'] }
+if ($values['RESEND_FROM_EMAIL']) { $secrets['RESEND_FROM_EMAIL'] = $values['RESEND_FROM_EMAIL'] }
 if ($values['SUPABASE_URL']) { $secrets['SUPABASE_URL'] = $values['SUPABASE_URL'] }
 if ($values['SUPABASE_ANON_KEY']) { $secrets['SUPABASE_ANON_KEY'] = $values['SUPABASE_ANON_KEY'] }
 if ($values['RESEND_API_KEY']) { $secrets['RESEND_API_KEY'] = $values['RESEND_API_KEY'] }
+if ($values['OLLAMA_BASE_URL']) { $secrets['OLLAMA_BASE_URL'] = $values['OLLAMA_BASE_URL'] }
+if ($values['OLLAMA_MODEL']) { $secrets['OLLAMA_MODEL'] = $values['OLLAMA_MODEL'] }
+if ($values['APP_ORIGIN']) { $secrets['APP_ORIGIN'] = $values['APP_ORIGIN'] }
 
 if ($secrets.Count -eq 0) {
   Write-Host '  No hay secretos que configurar.' -ForegroundColor Yellow

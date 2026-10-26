@@ -38,7 +38,7 @@ Es la forma mas directa: Vercel compila el codigo cada vez que haces push.
    - **Root Directory**: `.` (dejalo como esta)
    - **Build Command**:
      ```
-     flutter build web --release --dart-define=SUPABASE_URL=$SUPABASE_URL --dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY --dart-define=GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID --dart-define=GOOGLE_SERVER_CLIENT_ID=$GOOGLE_SERVER_CLIENT_ID --dart-define=WEB_APP_URL=$WEB_APP_URL --dart-define=N8N_WEBHOOK_URL=$N8N_WEBHOOK_URL --dart-define=SUPPORT_EMAIL=$SUPPORT_EMAIL
+     flutter build web --release --dart-define=SUPABASE_URL=$SUPABASE_URL --dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY --dart-define=GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID --dart-define=GOOGLE_SERVER_CLIENT_ID=$GOOGLE_SERVER_CLIENT_ID --dart-define=WEB_APP_URL=$WEB_APP_URL
      ```
    - **Output Directory**: `build/web`
    - **Install Command**: `flutter pub get`
@@ -85,8 +85,6 @@ las pruebas previas):
 | `GOOGLE_CLIENT_ID` | Id de cliente web de Google OAuth | Si |
 | `GOOGLE_SERVER_CLIENT_ID` | Id de cliente de servidor (opcional) | Si |
 | `WEB_APP_URL` | `https://project-mano-ya-web.vercel.app` | Si |
-| `N8N_WEBHOOK_URL` | `https://<tu-n8n>/webhook/reportes` | Si |
-| `SUPPORT_EMAIL` | `soporte@manoya.app` | Si |
 
 > **Nunca** pongas aqui la `SUPABASE_SERVICE_ROLE_KEY` ni el
 > `N8N_WEBHOOK_SECRET`: son secretos de servidor y no deben ir al navegador.
@@ -95,9 +93,8 @@ las pruebas previas):
 >
 > En la web los reportes se authenticate con la sesion del usuario
 > (`Authorization: Bearer <access_token>`) y la Edge Function `notify-report`
-> valida esa sesion en el servidor. En la app movil si se inyecta
-> `N8N_WEBHOOK_SECRET`, porque ahi viaja en la cabecera `X-Webhook-Secret`
-> de cada peticion al webhook de n8n.
+> valida la sesión antes de notificar. No se inyecta ningún secreto de n8n
+> en la web ni en el APK.
 
 Todas estas variables llegan al navegador dentro del bundle, asi que son
 publicas por naturaleza: usa siempre la **clave anon** de Supabase, nunca la

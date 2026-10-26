@@ -8,7 +8,7 @@ name: Deploy web (GitHub Pages)
 #   2. Settings -> Secrets and variables -> Actions -> New repository secret
 #      y crea los secretos que se listan abajo (SUPABASE_URL,
 #      SUPABASE_ANON_KEY, GOOGLE_CLIENT_ID, GOOGLE_SERVER_CLIENT_ID,
-#      WEB_APP_URL, N8N_WEBHOOK_URL, SUPPORT_EMAIL).
+#      WEB_APP_URL). No agregues secretos de n8n, Resend ni service_role.
 
 on:
   push:
@@ -67,9 +67,7 @@ jobs:
             --dart-define=SUPABASE_ANON_KEY="${{ secrets.SUPABASE_ANON_KEY }}" \
             --dart-define=GOOGLE_CLIENT_ID="${{ secrets.GOOGLE_CLIENT_ID }}" \
             --dart-define=GOOGLE_SERVER_CLIENT_ID="${{ secrets.GOOGLE_SERVER_CLIENT_ID }}" \
-            --dart-define=WEB_APP_URL="${{ secrets.WEB_APP_URL }}" \
-            --dart-define=N8N_WEBHOOK_URL="${{ secrets.N8N_WEBHOOK_URL }}" \
-            --dart-define=SUPPORT_EMAIL="${{ secrets.SUPPORT_EMAIL }}"
+            --dart-define=WEB_APP_URL="${{ secrets.WEB_APP_URL }}"
 
       - name: Preparar la carpeta publica
         run: |

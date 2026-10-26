@@ -66,8 +66,6 @@ En **Settings -> Secrets and variables -> Actions** crea estos secretos:
 | `GOOGLE_CLIENT_ID` | Client ID web de Google OAuth |
 | `GOOGLE_SERVER_CLIENT_ID` | Client ID web de Google OAuth |
 | `WEB_APP_URL` | URL publica de la web |
-| `N8N_WEBHOOK_URL` | `https://<tu-n8n>/webhook/reportes` |
-| `SUPPORT_EMAIL` | `soporte@manoya.app` |
 
 La clave de servicio de Supabase **no** se pone aqui: el workflow solo
 compila la web, que es una aplicacion publica.

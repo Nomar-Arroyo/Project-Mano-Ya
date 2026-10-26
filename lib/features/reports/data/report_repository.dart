@@ -1,17 +1,15 @@
-import 'dart:convert';
-
-import 'package:http/http.dart' as http;
-
-import '../../../core/config/app_config.dart';
 import '../../../core/services/supabase_service.dart';
 import '../domain/report.dart';
+
+typedef ReportSaver = Future<String?> Function(Map<String, dynamic> payload);
+typedef ReportNotifier = Future<bool> Function(String reportId);
 
 /// Resultado del envío de un reporte.
 class ReportSubmission {
   /// Indica si el reporte quedó registrado en la base de datos.
   final bool saved;
 
-  /// Indica si el webhook de n8n recibió la notificación.
+  /// Indica si la notificación al servicio de soporte se completó.
   final bool notified;
 
   /// Identificador del reporte creado.
@@ -28,40 +26,21 @@ class ReportSubmission {
   });
 }
 
-/// Repositorio de reportes.
-///
-/// El reporte siempre se guarda en la tabla `reports` de Supabase. Si hay un
-/// webhook de n8n configurado, ademas se envía la notificación para que el
-/// equipo de soporte reciba el aviso por correo y Slack.
+/// Guarda reportes en Supabase y notifica mediante una Edge Function
+/// autenticada. Ningún secreto de n8n viaja en la aplicación.
 class ReportRepository {
   static const String _table = 'reports';
 
-  /// Cliente HTTP usado para avisar a n8n. Se puede inyectar uno de prueba
-  /// para verificar las cabeceras enviadas.
-  final http.Client _httpClient;
-
-  /// URL del webhook de n8n. Por defecto sale de la configuracion de la app,
-  /// pero se puede sobreescribir (por ejemplo en pruebas).
-  final String? webhookUrl;
-
-  /// Secreto compartido con n8n. Por defecto sale de la configuracion de la
-  /// app, pero se puede sobreescribir (por ejemplo en pruebas).
-  final String? webhookSecret;
+  final ReportSaver? _reportSaver;
+  final ReportNotifier? _reportNotifier;
 
   ReportRepository({
-    http.Client? httpClient,
-    this.webhookUrl,
-    this.webhookSecret,
-  }) : _httpClient = httpClient ?? http.Client();
+    ReportSaver? reportSaver,
+    ReportNotifier? reportNotifier,
+  }) : _reportSaver = reportSaver,
+       _reportNotifier = reportNotifier;
 
-  /// URL efectiva del webhook.
-  String get _effectiveWebhookUrl => webhookUrl ?? AppConfig.n8nWebhookUrl;
-
-  /// Secreto efectivo que viaja en la cabecera `X-Webhook-Secret`.
-  String get _effectiveWebhookSecret =>
-      webhookSecret ?? AppConfig.n8nWebhookSecret;
-
-  /// Guarda un reporte y notifica a n8n.
+  /// Guarda un reporte y notifica a soporte cuando existe una fila persistida.
   Future<ReportSubmission> submit({
     required String reporterId,
     required String reporterName,
@@ -90,32 +69,16 @@ class ReportRepository {
       createdAt: DateTime.now(),
     );
 
-    final client = SupabaseService.client;
-    String? reportId;
-    var saved = false;
-
-    if (client != null) {
-      try {
-        final response = await client
-            .from(_table)
-            .insert(report.toInsertMap())
-            .select('id')
-            .single();
-        reportId = response['id'] as String?;
-        saved = true;
-      } catch (_) {
-        saved = false;
-      }
-    }
-
-    final notified = await _notifyWebhook(report, reportId);
+    final reportId = await _saveReport(report.toInsertMap());
+    final saved = reportId != null;
+    final notified = saved ? await _notifySavedReport(reportId) : false;
 
     if (saved && notified) {
-      return const ReportSubmission(
+      return ReportSubmission(
         saved: true,
         notified: true,
-        message:
-            'Reporte enviado. Nuestro equipo lo revisará lo antes posible.',
+        reportId: reportId,
+        message: 'Reporte enviado. Nuestro equipo lo revisará lo antes posible.',
       );
     }
     if (saved) {
@@ -126,13 +89,10 @@ class ReportRepository {
         message: 'Reporte registrado. Te responderemos por correo.',
       );
     }
-    return ReportSubmission(
+    return const ReportSubmission(
       saved: false,
-      notified: notified,
-      reportId: reportId,
-      message: notified
-          ? 'Reporte enviado. Guardaremos la evidencia al recuperar la conexión.'
-          : 'No pudimos enviar el reporte. Revisa tu conexión e inténtalo de nuevo.',
+      notified: false,
+      message: 'No pudimos guardar el reporte. Revisa tu conexión e inténtalo de nuevo.',
     );
   }
 
@@ -153,51 +113,38 @@ class ReportRepository {
     }
   }
 
-  /// Envía la notificación al webhook de n8n.
-  ///
-  /// La petición incluye la cabecera `X-Webhook-Secret` con el secreto
-  /// compartido, para que n8n solo acepte avisos de esta app.
-  Future<bool> _notifyWebhook(Report report, String? reportId) async {
-    final webhookUrl = _effectiveWebhookUrl;
-    if (webhookUrl.isEmpty) return false;
+  Future<String?> _saveReport(Map<String, dynamic> payload) async {
+    if (_reportSaver != null) return _reportSaver(payload);
+    final client = SupabaseService.client;
+    if (client == null) return null;
+
     try {
-      final headers = <String, String>{'Content-Type': 'application/json'};
-      final secret = _effectiveWebhookSecret;
-      if (secret.isNotEmpty) {
-        headers['X-Webhook-Secret'] = secret;
-      }
+      final response = await client
+          .from(_table)
+          .insert(payload)
+          .select('id')
+          .single();
+      return response['id'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
 
-      // La version web no lleva el secreto en el bundle, asi que se envia la
-      // sesion del usuario: la Edge Function la valida en el servidor.
-      final accessToken =
-          SupabaseService.client?.auth.currentSession?.accessToken;
-      if (accessToken != null && accessToken.isNotEmpty) {
-        headers['Authorization'] = 'Bearer $accessToken';
-      }
+  Future<bool> _notifySavedReport(String reportId) async {
+    if (_reportNotifier != null) return _reportNotifier(reportId);
+    final client = SupabaseService.client;
+    if (client == null) return false;
 
-      final response = await _httpClient
-          .post(
-            Uri.parse(webhookUrl),
-            headers: headers,
-            body: jsonEncode({
-              'evento': 'nuevo_reporte',
-              'id': reportId ?? report.id,
-              'categoria': report.category.value,
-              'categoria_label': report.category.label,
-              'severidad': report.severity.value,
-              'motivo': report.reason,
-              'detalle': report.details,
-              'reporta': report.reporterName,
-              'reporta_id': report.reporterId,
-              'correo': report.reporterEmail,
-              'reportado': report.targetName,
-              'reportado_id': report.targetUserId,
-              'servicio_id': report.jobId,
-              'creado': report.createdAt.toIso8601String(),
-            }),
-          )
-          .timeout(const Duration(seconds: 10));
-      return response.statusCode >= 200 && response.statusCode < 300;
+    try {
+      final response = await client.functions.invoke(
+        'notify-report',
+        body: {'id': reportId},
+      );
+      final data = response.data;
+      return response.status == 200 &&
+          data is Map &&
+          data['ok'] == true &&
+          (data['enviado'] == true || data['encolado'] == true);
     } catch (_) {
       return false;
     }

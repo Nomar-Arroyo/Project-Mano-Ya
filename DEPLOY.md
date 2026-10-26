@@ -19,12 +19,15 @@ La app las lee en `lib/core/config/app_config.dart`.
 
 | Variable | Publica | Uso |
 | --- | --- | --- |
-| `SUPABASE_URL` | Si | URL del proyecto: `https://waxypsqomsljcljdqwra.supabase.co` || `SUPABASE_ANON_KEY` | Si | Clave publica `sb_publishable_...` o la clave `anon` heredada |
+| `SUPABASE_URL` | Si | URL del proyecto: `https://waxypsqomsljcljdqwra.supabase.co` |
+| `SUPABASE_ANON_KEY` | Si | Clave publica `sb_publishable_...` o la clave `anon` heredada |
 | `GOOGLE_CLIENT_ID` | Si | Client id de la app web/iOS (Google Cloud Console) |
 | `GOOGLE_SERVER_CLIENT_ID` | Si | Client id de tipo *web* que Android usa para el `id_token` |
 | `WEB_APP_URL` | Si | URL publica de la app web (se usa en los enlaces de los correos) |
-| `N8N_WEBHOOK_URL` | Si | Webhook que recibe los reportes: `https://<tu-n8n>/webhook/reportes` |
-| `SUPPORT_EMAIL` | Si | Correo que recibe los reportes: `soporte@manoya.app` |
+
+Los reportes llaman a la Edge Function `notify-report` con la sesión Supabase
+del usuario. La URL del webhook n8n, `N8N_WEBHOOK_SECRET`, `RESEND_API_KEY` y
+el correo de soporte se configuran únicamente en el backend.
 
 ### Que es publico y que no
 
@@ -86,8 +89,6 @@ secret**. Crea uno por cada variable:
 | `GOOGLE_CLIENT_ID` | client id de la app web/iOS (opcional) |
 | `GOOGLE_SERVER_CLIENT_ID` | client id de tipo web (opcional) |
 | `WEB_APP_URL` | `https://Nomar-Arroyo.github.io/Project-Mano-Ya/` |
-| `N8N_WEBHOOK_URL` | `https://<tu-n8n>/webhook/reportes` (opcional) |
-| `SUPPORT_EMAIL` | `soporte@manoya.app` |
 
 ### 2. Activar GitHub Pages
 
@@ -133,8 +134,6 @@ Resultado: <https://Nomar-Arroyo.github.io/Project-Mano-Ya/>
    | `GOOGLE_CLIENT_ID` | client id de la app web (opcional) |
    | `GOOGLE_SERVER_CLIENT_ID` | client id de tipo web (opcional) |
    | `WEB_APP_URL` | `https://<tu-sitio>.pages.dev/` |
-   | `N8N_WEBHOOK_URL` | `https://<tu-n8n>/webhook/reportes` (opcional) |
-   | `SUPPORT_EMAIL` | `soporte@manoya.app` |
 
 5. **Save and Deploy**. Cloudflare te da el dominio `*.pages.dev` y puedes
    añadir uno propio gratis.

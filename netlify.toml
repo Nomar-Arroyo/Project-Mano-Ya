@@ -14,13 +14,12 @@
 #      GOOGLE_CLIENT_ID         (opcional) client id de la app web
 #      GOOGLE_SERVER_CLIENT_ID  (opcional) client id de tipo web
 #      WEB_APP_URL              https://tu-sitio.netlify.app
-#      N8N_WEBHOOK_URL          (opcional) https://tu-n8n/webhook/reportes
-#      SUPPORT_EMAIL            soporte@manoya.app
+#    Los secretos de n8n, Resend y Supabase service_role son solo del backend.
 # =====================================================================
 
 [build]
   publish = "build/web"
-  command = "flutter build web --release --base-href=\"/\" --dart-define=SUPABASE_URL=$SUPABASE_URL --dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY --dart-define=GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID --dart-define=GOOGLE_SERVER_CLIENT_ID=$GOOGLE_SERVER_CLIENT_ID --dart-define=WEB_APP_URL=$WEB_APP_URL --dart-define=N8N_WEBHOOK_URL=$N8N_WEBHOOK_URL --dart-define=SUPPORT_EMAIL=$SUPPORT_EMAIL"
+  command = "flutter build web --release --base-href=\"/\" --dart-define=SUPABASE_URL=$SUPABASE_URL --dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY --dart-define=GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID --dart-define=GOOGLE_SERVER_CLIENT_ID=$GOOGLE_SERVER_CLIENT_ID --dart-define=WEB_APP_URL=$WEB_APP_URL"
 
 [build.environment]
   FLUTTER_VERSION = "3.47.7"

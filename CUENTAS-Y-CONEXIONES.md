@@ -268,31 +268,29 @@ En n8n, **Settings → Variables**, o directamente en los nodos:
 2. Copia la **URL de producción** del nodo Webhook:
    `https://tu-n8n/webhook/reportes`.
 3. En el **SQL Editor de Supabase** ejecuta `n8n/supabase-webhook-setup.sql`
-   y, si hace falta, corrige la URL con:
+   después de reemplazar los marcadores de URL y secreto. Si solo necesitas
+   cambiar la URL, usa:
 
 ```sql
 select public.set_n8n_webhook('https://tu-n8n/webhook/reportes');
 ```
 
-4. Pon la misma URL en el `.env` de la app:
-
-```
-N8N_WEBHOOK_URL=https://tu-n8n/webhook/reportes
-```
-
-5. Genera un secreto y ponlo en ambos lados:
+4. Genera un secreto aleatorio y configura el mismo valor:
 
 ```
 N8N_WEBHOOK_SECRET=un-texto-largo-y-aleatorio
 ```
 
-- En n8n: variable del workflow.
-- En Supabase: **Edge Functions → notify-report → Secrets**.
+- En n8n: credencial de Header Auth.
+- En Supabase: guárdalo como `n8n_webhook_secret` en `app_settings` usando
+  el bloque comentado de `n8n/supabase-webhook-setup.sql`.
+- La Edge Function `notify-report` usa el secreto al recibir el POST de n8n;
+  no se envía desde Flutter.
 
-> El trigger de la base de datos (`notify_new_report`) ya avisa a n8n
-> automáticamente. La app también lo hace. Las dos vías son idempotentes
-> porque el trigger marca `notified_at`, así que un reporte no genera dos
-> correos.
+> El trigger avisa a n8n y marca `notified_at` cuando el POST queda encolado
+> por `pg_net`. Cuando Flutter notifica a `notify-report`, la función detecta
+> ese estado y evita enviar otro correo. `notified_at` no confirma que n8n
+> haya procesado el evento ni que el correo se haya entregado.
 
 ---
 
@@ -303,8 +301,8 @@ N8N_WEBHOOK_SECRET=un-texto-largo-y-aleatorio
 3. Copia `re_...`.
 4. En Supabase: **Edge Functions → notify-report → Secrets**:
    - `RESEND_API_KEY` = `re_...`
-   - `N8N_WEBHOOK_SECRET` = el mismo secreto que pusiste en n8n.
    - `SUPPORT_EMAIL` = a quién llega el reporte (ej. `soporte@manoya.app`).
+   - `N8N_WEBHOOK_SECRET` = el mismo secreto que pusiste en n8n.
 5. **Domains → Add Domain** → `manoya.app` (o el que uses) y configura los
    DNS que te indique Resend. Verifica con el botón de check.
 
@@ -329,8 +327,6 @@ El workflow `.github/workflows/deploy-web.yml` ya está creado. Solo falta:
    - `GOOGLE_CLIENT_ID` = (el de Android, para la PWA conviene el Web)
    - `GOOGLE_SERVER_CLIENT_ID` = el Web
    - `WEB_APP_URL` = `https://<usuario>.github.io/Project-Mano-Ya`
-   - `N8N_WEBHOOK_URL` = la URL de n8n
-   - `SUPPORT_EMAIL` = tu correo de soporte
 2. **Settings → Pages → Source: GitHub Actions**.
 3. Cada `push` a `main` publica la web.
 
@@ -342,7 +338,8 @@ URL final: `https://<usuario>.github.io/Project-Mano-Ya/`
 2. **Connect to Git** → elige el repositorio.
 3. **Build command**: `flutter build web --release`
 4. **Build output directory**: `build/web`
-5. **Environment variables**: las mismas de arriba.
+5. **Environment variables**: las credenciales públicas de Supabase y Google
+   y `WEB_APP_URL`; no agregues secretos ni ajustes internos de n8n.
 6. **Settings → Builds & deployments** → añade `NODE_VERSION 20` y
    `FLUTTER_VERSION 3.24.0` si falla la compilación.
 
@@ -423,7 +420,7 @@ código `0` si hay al menos un perfil y `1` si la base está vacía.
 | `GOOGLE_SERVER_CLIENT_ID` | `.env` y secretos del hosting | Sí, es público |
 | `SUPABASE_SERVICE_ROLE_KEY` (`sb_secret_...`) | `.env` de n8n | **No** |
 | `GOOGLE_CLIENT_SECRET` | Panel de Supabase | **No** |
-| `N8N_WEBHOOK_SECRET` | n8n, secretos de Supabase y `.env` de la app movil | **No en la web**; en el APK viaja en la cabecera `X-Webhook-Secret` |
+| `N8N_WEBHOOK_SECRET` | n8n, secretos de Supabase y `app_settings.n8n_webhook_secret` | **Nunca en Flutter, APK, web ni `.env` del cliente** |
 | Contraseña de la base de datos | Solo en tus notas | **No** |
 
 El archivo `.env` ya está en `.gitignore`. Antes de hacer commit, revisa con

@@ -1,8 +1,7 @@
 # ======================================================================
 # Mano Ya · Configuracion de Supabase (CLI)
 # ----------------------------------------------------------------------
-# Archivo minimo para que la Supabase CLI reconoce el proyecto y la
-# Edge Function `notify-report`.
+# Configuracion local y opciones de despliegue de Edge Functions.
 #
 # Comandos utiles:
 #   supabase link --project-ref waxypsqomsljcljdqwra
@@ -25,10 +24,14 @@ major_version = 15
 # ----------------------------------------------------------------------
 # Edge Function que envia los reportes por correo (Resend).
 #
-# verify_jwt = false porque la llamada la hace n8n con su propio secreto
-# (`x-webhook-secret` -> variable de entorno N8N_WEBHOOK_SECRET), no con
-# el JWT de Supabase. La funcion rechaza cualquier peticion que no
-# incluya ese secreto.
+# verify_jwt = false para que la funcion admita tanto el POST autenticado de
+# n8n (`x-webhook-secret`) como la sesion Supabase validada dentro de la
+# funcion para solicitudes creadas desde Flutter.
 # ----------------------------------------------------------------------
 [functions.notify-report]
 verify_jwt = false
+
+# Las recomendaciones requieren una sesión de Supabase; la función también
+# valida el token antes de consultar catálogo o utilizar Ollama.
+[functions.recommend-workers]
+verify_jwt = true

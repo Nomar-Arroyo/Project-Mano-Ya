@@ -12,7 +12,8 @@
       2. Localiza el workflow que tiene el nodo Webhook con la ruta
          configurada en `N8N_WEBHOOK_URL`.
       3. Le asigna esa credencial al nodo y activa el workflow.
-      4. Comprueba con una peticion real que el webhook ya responde.
+      4. Verifica por API la configuracion sin ejecutar el workflow ni enviar
+         un reporte o correo de prueba.
 
     Necesita una API Key de n8n (Settings > n8n API > Create an API key).
 
@@ -46,21 +47,20 @@ foreach ($line in Get-Content $envFile) {
   $values[$trimmed.Substring(0, $separator).Trim()] = $trimmed.Substring($separator + 1).Trim().Trim('"').Trim("'")
 }
 
-if (-not $BaseUrl) { $BaseUrl = $values['N8N_BASE_URL'] }
-if (-not $BaseUrl) {
-  # La URL del webhook ya trae el dominio de la instancia:
-  # https://<equipo>.app.n8n.cloud/webhook/<ruta>
-  $uriWebhook = [Uri]$webhookUrlInicial
-  $BaseUrl = "$($uriWebhook.Scheme)://$($uriWebhook.Authority)"
-}
-if (-not $BaseUrl) { throw 'Falta la URL de la instancia de n8n (parametro -BaseUrl o variable N8N_BASE_URL).' }
-$BaseUrl = $BaseUrl.TrimEnd('/')
-
 $webhookUrl = $values['N8N_WEBHOOK_URL']
 $secret = $values['N8N_WEBHOOK_SECRET']
 if (-not $webhookUrl) { throw 'Falta N8N_WEBHOOK_URL en el .env.' }
 if (-not $secret) { throw 'Falta N8N_WEBHOOK_SECRET en el .env.' }
-$webhookUrlInicial = $webhookUrl
+
+if (-not $BaseUrl) { $BaseUrl = $values['N8N_BASE_URL'] }
+if (-not $BaseUrl) {
+  # La URL del webhook ya trae el dominio de la instancia:
+  # https://<equipo>.app.n8n.cloud/webhook/<ruta>
+  $uriWebhook = [Uri]$webhookUrl
+  $BaseUrl = "$($uriWebhook.Scheme)://$($uriWebhook.Authority)"
+}
+if (-not $BaseUrl) { throw 'Falta la URL de la instancia de n8n (parametro -BaseUrl o variable N8N_BASE_URL).' }
+$BaseUrl = $BaseUrl.TrimEnd('/')
 
 if (-not $ApiKey) {
   $ApiKey = Read-Host 'API Key de n8n' -MaskInput
@@ -163,58 +163,18 @@ try {
   Write-Warning "  no se pudo activar (puede que ya estuviera activo): $($_.Exception.Message)"
 }
 
-# 4. Comprobacion real.
-Write-Host '4/4 Probando el webhook...' -ForegroundColor Cyan
-$payload = @{
-  evento = 'prueba_validacion'
-  id = 'validacion-local'
-  categoria = 'otro'
-  categoria_label = 'Prueba de validacion'
-  severidad = 'baja'
-  motivo = 'Validacion tecnica del encabezado'
-  detalle = 'Prueba automatica, se puede ignorar.'
-  reporta = 'Validacion local'
-  correo = $values['SUPPORT_EMAIL']
-  creado = (Get-Date).ToUniversalTime().ToString('o')
-} | ConvertTo-Json
+# 4. Verificacion de configuracion sin ejecutar el workflow ni enviar correos.
+Write-Host '4/4 Verificando la configuracion por API...' -ForegroundColor Cyan
+$verifiedWorkflow = Invoke-RestMethod -Uri "$BaseUrl/api/v1/workflows/$($target.id)" -Headers $headers -Method Get -TimeoutSec 60
+$verifiedWebhook = @($verifiedWorkflow.nodes) | Where-Object {
+  $_.type -eq 'n8n-nodes-base.webhook' -and
+  $_.parameters.path -eq $path
+} | Select-Object -First 1
 
-try {
-  $response = Invoke-WebRequest -Uri $webhookUrl -Headers @{ 'X-Webhook-Secret' = $secret; 'Content-Type' = 'application/json' } -Method Post -Body $payload -TimeoutSec 60 -UseBasicParsing
-  Write-Host "  OK  HTTP $([int]$response.StatusCode)" -ForegroundColor Green
-  Write-Host "  respuesta: $($response.Content.Substring(0, [Math]::Min(200, $response.Content.Length)))"
-} catch {
-  $resp = $_.Exception.Response
-  if ($resp) {
-    $reader = New-Object System.IO.StreamReader($resp.GetResponseStream())
-    $text = $reader.ReadToEnd()
-    Write-Host "  HTTP $([int]$resp.StatusCode) -> $text" -ForegroundColor Red
-  } else {
-    Write-Host "  ERROR: $($_.Exception.Message)" -ForegroundColor Red
-  }
+if (-not $verifiedWebhook -or
+    $verifiedWebhook.parameters.authentication -ne 'headerAuth' -or
+    $verifiedWebhook.credentials.httpHeaderAuth.id -ne $credentialId) {
+  throw 'La API no confirma la autenticacion Header Auth en el nodo Webhook.'
 }
 
-# La prueba negativa: sin la cabecera el webhook tiene que rechazar la
-# llamada. Si tambien responde 2xx, la autenticacion no esta activa.
-try {
-  $req = [System.Net.HttpWebRequest]::Create($webhookUrl)
-  $req.Method = 'POST'
-  $req.ContentType = 'application/json'
-  $req.AllowAutoRedirect = $false
-  $req.Timeout = 60000
-  $bytes = [System.Text.Encoding]::UTF8.GetBytes($payload)
-  $req.ContentLength = $bytes.Length
-  $stream = $req.GetRequestStream()
-  $stream.Write($bytes, 0, $bytes.Length)
-  $stream.Close()
-  $respSinSecreto = $req.GetResponse()
-  Write-Host "  AVISO: sin secreto tambien responde HTTP $([int]$respSinSecreto.StatusCode). La cabecera no se esta validando." -ForegroundColor Yellow
-  $respSinSecreto.Close()
-} catch [System.Net.WebException] {
-  $r = $_.Exception.Response
-  if ($r) {
-    Write-Host "  sin secreto: HTTP $([int]$r.StatusCode) (rechazado, correcto)" -ForegroundColor Green
-    $r.Close()
-  } else {
-    Write-Host "  sin secreto: $($_.Exception.Message)" -ForegroundColor Yellow
-  }
-}
+Write-Host '  Header Auth y credencial confirmados. No se envio ningun reporte de prueba.' -ForegroundColor Green

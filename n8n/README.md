@@ -1,9 +1,10 @@
 # n8n en Mano Ya
 
-Automatizaciones del proyecto **Mano Ya**: los reportes que envian los
-usuarios de la app llegan a n8n, n8n llama a la Edge Function de Supabase y
-esa funcion manda el correo al equipo de soporte. Ademas hay un workflow
-diario que ejecuta la retencion de datos de la base de datos.
+Automatizaciones del proyecto **Mano Ya**: el trigger de Supabase envía a n8n
+los reportes persistidos; n8n llama a la Edge Function de Supabase y esa
+función manda el correo al equipo de soporte. Flutter notifica a la Edge
+Function con la sesión Supabase del usuario, sin secretos n8n en el cliente.
+Además hay un workflow diario que ejecuta la retención de datos de la base.
 
 | Archivo | Que es |
 | --- | --- |
@@ -18,25 +19,24 @@ diario que ejecuta la retencion de datos de la base de datos.
 ## 1. Como funciona el flujo completo
 
 ```
-App Flutter ──POST──> n8n /webhook/reportes ──POST──> Edge Function notify-report
+App Flutter ──sesion──> Edge Function notify-report
                                                           │
                                                           └──> Resend ──> correo a soporte
 
 Trigger reports_notify_n8n (pg_net) ──POST──> n8n /webhook/reportes
+                                                   └──> Edge Function notify-report
 ```
 
-- **La app** siempre guarda el reporte en la tabla `public.reports` y, si
-  tiene `N8N_WEBHOOK_URL`, tambien lo manda al webhook de n8n.
+- **La app** guarda el reporte en `public.reports` y llama a la Edge Function
+  `notify-report` con su sesión autenticada. No lleva URL ni secreto de n8n.
 - **El trigger de la base de datos** (`reports_notify_n8n`, definido en
-  `supabase/migrations/20240101000200_reportes_y_automatizacion.sql`) hace lo
-  mismo con `net.http_post` en cuanto se inserta la fila.
-- Por eso hay **doble via**: la app avisa y la base de datos tambien avisa.
-- Es **idempotente**: el trigger marca `notified_at = now()` en la fila del
-  reporte, asi que el panel y las consultas permiten saber que el reporte ya
-  fue notificado y no hay que procesarlo dos veces a mano.
-- La **Edge Function** es la unica que manda correos y exige el secreto
-  `x-webhook-secret`, de modo que solo n8n (que lo tiene en su
-  configuracion) puede pedir un envio.
+  `supabase/migrations/20240101000200_reportes_y_automatizacion.sql`) encola
+  un POST a n8n usando `pg_net` al insertar la fila.
+- `notified_at` indica que el POST quedó encolado; no garantiza que n8n lo
+  procesó ni que Resend entregó el correo.
+- La Edge Function reconoce la fila encolada cuando Flutter la notifica y no
+  envía un segundo correo. n8n llama a la misma función con el secreto
+  compartido configurado solo en servidores.
 
 ---
 
@@ -213,7 +213,7 @@ Dos formas de dejarlo bien:
 
 | Nodo | Para que sirve | Como se activa |
 | --- | --- | --- |
-| `Consultar reporte en Supabase` | Comprobar que el reporte existe de verdad en `public.reports` antes de avisar a soporte (endurece el webhook, que es publico) | Sustituye `{{SUPABASE_URL}}` y `{{SUPABASE_SERVICE_ROLE_KEY}}`, activa el nodo y anade un nodo **IF** que compruebe que la respuesta trae una fila (`{{ $json.length }} > 0`) para decidir si se manda el correo |
+| `Consultar reporte en Supabase` | Comprobar que el reporte existe de verdad en `public.reports` antes de avisar a soporte (defensa adicional al Header Auth del webhook) | Sustituye `{{SUPABASE_URL}}` y `{{SUPABASE_SERVICE_ROLE_KEY}}`, activa el nodo y anade un nodo **IF** que compruebe que la respuesta trae una fila (`{{ $json.length }} > 0`) para decidir si se manda el correo |
 | `Apend report (Google Sheets)` | Llevar el historial de reportes a una hoja de calculo | Crea la credencial **Google Sheets**, deja el id de la hoja en `{{GOOGLE_SHEETS_ID}}`, usa una pestana llamada `Reportes` con los encabezados `id, categoria, severidad, motivo, detalle, reporta, correo, reportado, servicio_id, creado` y activa el nodo |
 | `Avisar a soporte (Slack)` | Aviso instantaneo en un canal de Slack | Crea una app en <https://api.slack.com/apps> con el permiso `chat:write`, crea la credencial **Slack API** con el bot token (`xoxb-...`), pon el id del canal en `{{SLACK_CHANNEL_ID}}` y activa el nodo |
 
@@ -254,50 +254,49 @@ El mismo `N8N_WEBHOOK_SECRET` es el que tiene que poner n8n en la cabecera
 ### 4.3 Guardar la URL del webhook en la base de datos
 
 Pega en el **SQL Editor** de Supabase el archivo `n8n/supabase-webhook-setup.sql`
-o ejecuta directamente:
-
-```sql
-update public.app_settings
-   set value = 'https://<tu-n8n>/webhook/reportes'
- where key = 'n8n_report_webhook';
-```
-
-Tambien puedes usar la funcion auxiliar que crea el script:
+después de reemplazar los marcadores. La función de configuración rechaza
+URLs que no usen HTTPS:
 
 ```sql
 select public.set_n8n_webhook('https://<tu-n8n>/webhook/reportes');
 ```
 
-Comprueba que quedo guardado:
+Guarda también el secreto del servidor en `app_settings` desde el SQL Editor
+(el bloque correspondiente está comentado en el script; sustituye el
+marcador antes de ejecutarlo):
 
 ```sql
-select * from public.app_settings where key = 'n8n_report_webhook';
+insert into public.app_settings (key, value, updated_at)
+values ('n8n_webhook_secret', '<SECRETO_ALEATORIO>', now())
+on conflict (key) do update
+  set value = excluded.value,
+      updated_at = now();
 ```
 
-Y prueba el circuito completo (esto inserta un reporte de ejemplo y debe
-rellenar `notified_at`):
+Comprueba que la configuración existe sin mostrar el secreto:
 
 ```sql
-insert into public.reports (reporter_name, reporter_email, target_name, category, reason, details)
-values ('Prueba', 'prueba@manoya.app', 'Prueba', 'otro', 'Prueba del webhook', 'Reporte de prueba')
-returning id, notified_at;
+select key, updated_at
+from public.app_settings
+where key in ('n8n_report_webhook', 'n8n_webhook_secret');
 ```
 
-Si `notified_at` vuelve con una fecha, el trigger encontro la URL y disparo
-la llamada. Si vuelve `NULL`, la URL esta vacia o el trigger no esta
-habilitado.
-
-> Si el trigger de la base de datos y la app avisan a la vez, el correo puede
-> llegar duplicado. Es inofensivo: ambos reportes apuntan al mismo `id` y el
-> workflow puede filtrar por ese id si mas adelante quieres evitarlo.
+No insertes reportes de prueba mediante SQL: podrían disparar notificaciones
+reales. Envía el reporte desde una cuenta de prueba. Un `notified_at` no nulo
+solo confirma que el POST quedó encolado; revisa las ejecuciones de n8n y el
+registro de Resend para confirmar el procesamiento y la entrega.
 
 ### 4.4 Prueba manual del webhook
 
 ```bash
 curl -X POST "https://<tu-n8n>/webhook/reportes" \
   -H "Content-Type: application/json" \
+  -H "x-webhook-secret: <SECRETO_CONFIGURADO_EN_N8N>" \
   -d '{"id":"11111111-1111-1111-1111-111111111111","categoria":"calidad","severidad":"normal","motivo":"Prueba manual","detalle":"Llamada desde la terminal","reporta":"Prueba","correo":"prueba@manoya.app","reportado":"","servicio_id":null,"creado":"2024-01-01T00:00:00Z"}'
 ```
+
+Esta prueba puede enviar un correo real; usa una dirección y contenido de
+prueba autorizados.
 
 Respuesta esperada:
 
@@ -314,16 +313,15 @@ En la raiz del proyecto, `.env` (esta en `.gitignore`, no se sube nunca):
 ```dotenv
 SUPABASE_URL=https://waxypsqomsljcljdqwra.supabase.co
 SUPABASE_ANON_KEY=sb_publishable_TU_CLAVE_PUBLICA
-
+GOOGLE_CLIENT_ID=
+GOOGLE_SERVER_CLIENT_ID=
 WEB_APP_URL=https://tu-dominio-web/
-N8N_WEBHOOK_URL=https://<tu-n8n>/webhook/reportes
-SUPPORT_EMAIL=soporte@manoya.app
-
-N8N_WEBHOOK_SECRET=el-mismo-secreto-que-esta-en-supabase
 ```
 
-El script `tool/run_flutter_with_env.ps1` lee ese archivo y pasa a Flutter
-las variables que esten Informadas como `--dart-define`:
+El script `tool/run_flutter_with_env.ps1` pasa a Flutter solo los valores
+públicos del cliente como `--dart-define`. La URL del webhook, el secreto,
+la clave de Resend y el correo de soporte son configuración de servidor; no
+deben agregarse al `.env` que usa el cliente.
 
 | Variable del `.env` | `--dart-define` | Nota |
 | --- | --- | --- |
@@ -332,8 +330,8 @@ las variables que esten Informadas como `--dart-define`:
 | `GOOGLE_CLIENT_ID` | `GOOGLE_CLIENT_ID` | Opcional |
 | `GOOGLE_SERVER_CLIENT_ID` | `GOOGLE_SERVER_CLIENT_ID` | Opcional |
 | `WEB_APP_URL` | `WEB_APP_URL` | Opcional, si no se pasa usa `https://mano-ya.app` |
-| `N8N_WEBHOOK_URL` | `N8N_WEBHOOK_URL` | Opcional, si no se pasa los reportes no se notifican |
-| `SUPPORT_EMAIL` | `SUPPORT_EMAIL` | Opcional, si no se pasa usa `soporte@manoya.app` |
+| `N8N_WEBHOOK_URL` | — | Solo en servidor; no se compila en Flutter |
+| `SUPPORT_EMAIL` | — | Solo en secretos de la Edge Function |
 
 ```powershell
 # Arrancar la app con todo el .env inyectado
@@ -343,21 +341,12 @@ las variables que esten Informadas como `--dart-define`:
 .\tool\run_flutter_with_env.ps1 build web --release
 ```
 
-**`N8N_WEBHOOK_SECRET` se pasa como `--dart-define` SOLO en la app movil.**
-Es un secreto de servidor: en la web no debe ir en el bundle, porque
-cualquiera podria leerlo del JavaScript y mandar correos a soporte.
-
-- **Movil (APK)**: el script `tool\run_flutter_with_env.ps1` lo inyecta y la
-  app manda la cabecera `X-Webhook-Secret` en cada peticion al webhook de
-  n8n. Activa en n8n la autenticacion por cabecera del nodo Webhook
-  (`Header Auth` con el mismo valor) para que solo la app pueda dispararlo.
-- **Web**: el bundle se compila sin el secreto. En su lugar la app manda el
-  token de sesion del usuario en `Authorization: Bearer <token>` y la Edge
-  Function `notify-report` valida esa sesion contra Supabase en el servidor.
-
-> El webhook de n8n es publico si no activas la autenticacion por cabecera.
-> Sin ella, alguien que adivine la URL puede generar un correo de aviso sin
-> relacion. En movil el riesgo queda cerrado con `Header Auth`.
+La app móvil y la web usan la sesión Supabase para llamar a `notify-report`.
+El trigger de base de datos usa el secreto guardado en
+`app_settings.n8n_webhook_secret` para autenticar el webhook de n8n; n8n usa
+ese secreto al llamar a la Edge Function. **Nunca compiles
+`N8N_WEBHOOK_SECRET` en APK, JavaScript ni otro artefacto del cliente.** Si
+estuvo en una versión distribuida, rótalo.
 
 ---
 
