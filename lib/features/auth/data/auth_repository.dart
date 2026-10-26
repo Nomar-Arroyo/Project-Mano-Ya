@@ -216,7 +216,7 @@ class AuthRepository {
     }
     if (_googleInicializado) return;
     final client = SupabaseService.client;
-    _googleRawNonce = kIsWeb ? null : client?.auth.generateRawNonce();
+    _googleRawNonce = client?.auth.generateRawNonce();
     final hashedNonce = _googleRawNonce == null
         ? null
         : sha256.convert(utf8.encode(_googleRawNonce!)).toString();
@@ -224,7 +224,7 @@ class AuthRepository {
       clientId: AppConfig.googleClientId.isEmpty
           ? null
           : AppConfig.googleClientId,
-      serverClientId: AppConfig.googleServerClientId.isEmpty
+      serverClientId: kIsWeb || AppConfig.googleServerClientId.isEmpty
           ? null
           : AppConfig.googleServerClientId,
       nonce: hashedNonce,
