@@ -55,6 +55,9 @@ implementación, las pruebas y la defensa final ante el jurado.
   junto con una **splash screen** de bienvenida.
 - **Catálogo de oficios** con las 6 categorías principales, búsqueda por
   ciudad/zona (autocompletado geolocalizado) y filtro por disponibilidad.
+- **Asistente de recomendaciones**: interpreta la necesidad del cliente y
+  muestra trabajadores existentes; requiere configurar la Edge Function y
+  Ollama en el backend.
 - **Ficha y confianza**: insignias de *Identidad Verificada*, *Trabajo
   Garantizado* y *Disponible Hoy*, además de valoraciones.
 - **Comunicación por WhatsApp**: enlace directo `wa.me` con mensaje
@@ -156,6 +159,22 @@ archivos `.env` directamente. Para compilar, se puede usar `build` en lugar de
 
 No pongas una clave `sb_secret_` ni `service_role` en Flutter; son credenciales
 privilegiadas.
+
+### Verificación del correo al registrarse
+
+Después del registro, la app muestra una pantalla para introducir el código de
+verificación enviado por Supabase Auth. Solo después de validar el código
+permite entrar. En el proyecto remoto, activa **Authentication > Providers >
+Email > Confirm email** y configura la plantilla de confirmación para mostrar
+el token `{{ .Token }}` (la plantilla local está en
+`supabase/templates/confirmation.html`). Para Supabase local,
+`supabase/config.toml` habilita `auth.email.enable_confirmations`; consulta los
+mensajes de desarrollo en Inbucket.
+
+Si la confirmación está desactivada, el cliente bloquea el acceso e informa que
+la configuración debe corregirse. En modo mock no se crean cuentas ni se envían
+correos. El inicio de sesión con Google usa la verificación gestionada por
+Google.
 
 ### Inicio de sesión con Google (OAuth)
 

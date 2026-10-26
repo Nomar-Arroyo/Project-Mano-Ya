@@ -21,6 +21,13 @@ max_rows = 1000
 [db]
 major_version = 15
 
+[auth.email]
+enable_confirmations = true
+
+[auth.email.template.confirmation]
+subject = "Código de verificación de Mano Ya"
+content_path = "./supabase/templates/confirmation.html"
+
 # ----------------------------------------------------------------------
 # Edge Function que envia los reportes por correo (Resend).
 #

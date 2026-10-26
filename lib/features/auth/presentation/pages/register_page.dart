@@ -5,12 +5,13 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/validators.dart';
-import '../../../shared/models/user_role.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_text_field.dart';
 import '../../../shared/widgets/async_state_views.dart';
 import '../../../shared/widgets/city_autocomplete_field.dart';
 import '../../../shared/widgets/or_divider.dart';
+import '../../../shared/models/user_role.dart';
+import 'email_verification_page.dart';
 import '../../domain/auth_state.dart';
 import '../auth_provider.dart';
 import '../widgets/auth_scaffold.dart';
@@ -71,6 +72,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           ),
         );
         context.go('/home');
+      } else if (next.successMessage != null) {
+        context.go('/verify-email', extra: _emailCtrl.text.trim());
       }
     });
 
@@ -154,6 +157,13 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
               InlineMessage(
                 message: state.errorMessage!,
                 type: MessageType.error,
+              ),
+            ],
+            if (state.successMessage != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              InlineMessage(
+                message: state.successMessage!,
+                type: MessageType.success,
               ),
             ],
             const SizedBox(height: AppSpacing.lg),

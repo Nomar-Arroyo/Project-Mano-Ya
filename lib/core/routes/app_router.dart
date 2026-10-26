@@ -1,5 +1,7 @@
 import 'package:go_router/go_router.dart';
 
+import '../../features/assistant/presentation/pages/recommend_workers_page.dart';
+import '../../features/auth/presentation/pages/email_verification_page.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/pages/register_page.dart';
 import '../../features/auth/presentation/pages/two_factor_page.dart';
@@ -23,8 +25,17 @@ class AppRouter {
       GoRoute(path: '/splash', builder: (_, _) => const SplashPage()),
       GoRoute(path: '/login', builder: (_, _) => const LoginPage()),
       GoRoute(path: '/register', builder: (_, _) => const RegisterPage()),
+      GoRoute(
+        path: '/verify-email',
+        builder: (_, state) =>
+            EmailVerificationPage(email: state.extra as String),
+      ),
       GoRoute(path: '/two-factor', builder: (_, _) => const TwoFactorPage()),
       GoRoute(path: '/home', builder: (_, _) => const HomePage()),
+      GoRoute(
+        path: '/assistant',
+        builder: (_, _) => const RecommendWorkersPage(),
+      ),
       GoRoute(
         path: '/profile/edit',
         builder: (_, _) => const ProfileEditPage(),

@@ -14,6 +14,7 @@ class AuthState {
 
   /// Mensaje de error del último intento fallido (null si no hay error).
   final String? errorMessage;
+  final String? successMessage;
 
   const AuthState({
     required this.isAuthenticated,
@@ -27,6 +28,7 @@ class AuthState {
     this.twoFactorEnabled = false,
     this.loading = false,
     this.errorMessage,
+    this.successMessage,
   });
 
   const AuthState.unauthenticated() : this(isAuthenticated: false);
@@ -35,6 +37,17 @@ class AuthState {
   /// Estado de error producido durante un intento de autenticación.
   const AuthState.failure(String message)
     : this(isAuthenticated: false, errorMessage: message);
+
+  factory AuthState.emailConfirmationPending(
+    String email, {
+    String? message,
+  }) => AuthState(
+    isAuthenticated: false,
+    successMessage:
+        message ??
+        'Enviamos un código de verificación a $email. '
+            'Escríbelo para confirmar tu correo y continuar.',
+  );
 
   static AuthState authenticated({
     required String userId,
@@ -68,6 +81,7 @@ class AuthState {
     String? avatarUrl,
     bool? twoFactorEnabled,
     bool? loading,
+    bool clearMessages = false,
   }) {
     return AuthState(
       isAuthenticated: isAuthenticated,
@@ -80,6 +94,8 @@ class AuthState {
       avatarUrl: avatarUrl ?? this.avatarUrl,
       twoFactorEnabled: twoFactorEnabled ?? this.twoFactorEnabled,
       loading: loading ?? this.loading,
+      errorMessage: clearMessages ? null : errorMessage,
+      successMessage: clearMessages ? null : successMessage,
     );
   }
 

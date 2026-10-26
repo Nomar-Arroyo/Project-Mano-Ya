@@ -32,7 +32,16 @@ class WorkersCatalogPage extends ConsumerWidget {
     final notifier = ref.read(workersFilterProvider.notifier);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Catálogo de Oficios')),
+      appBar: AppBar(
+        title: const Text('Catálogo de Oficios'),
+        actions: [
+          IconButton(
+            tooltip: 'Asistente para encontrar un trabajador',
+            onPressed: () => context.push('/assistant'),
+            icon: const Icon(Icons.auto_awesome),
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

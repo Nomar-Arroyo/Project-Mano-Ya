@@ -77,7 +77,7 @@ class AuthNotifier extends Notifier<AuthState> {
       );
       await _persist();
       // La ficha del trabajador se crea en el catálogo de oficios.
-      if (role == UserRole.worker) {
+      if (state.isAuthenticated && role == UserRole.worker) {
         await WorkerRegistrationService.registerAfterSignUp(
           userId: state.userId ?? '',
           name: name,
@@ -90,6 +90,48 @@ class AuthNotifier extends Notifier<AuthState> {
     } catch (_) {
       state = const AuthState.failure(
         'No se pudo crear la cuenta. Intenta de nuevo.',
+      );
+    }
+  }
+
+  Future<void> verifyEmailCode({
+    required String email,
+    required String code,
+  }) async {
+    state = const AuthState.loading();
+    try {
+      state = await repo.verifyEmailCode(email: email, code: code);
+      await _persist();
+      if (state.role == UserRole.worker) {
+        await WorkerRegistrationService.registerAfterSignUp(
+          userId: state.userId ?? '',
+          name: state.displayName ?? '',
+          phone: state.phone,
+          city: state.city,
+        );
+      }
+    } on AuthException catch (e) {
+      state = AuthState.failure(e.message);
+    } catch (_) {
+      state = const AuthState.failure(
+        'No se pudo verificar el correo. Intenta de nuevo.',
+      );
+    }
+  }
+
+  Future<void> resendEmailCode(String email) async {
+    state = const AuthState.loading();
+    try {
+      await repo.resendEmailCode(email);
+      state = AuthState.emailConfirmationPending(
+        email,
+        message: 'Enviamos otro código de verificación a $email.',
+      );
+    } on AuthException catch (e) {
+      state = AuthState.failure(e.message);
+    } catch (_) {
+      state = const AuthState.failure(
+        'No se pudo reenviar el código. Intenta de nuevo.',
       );
     }
   }
@@ -134,10 +176,10 @@ class AuthNotifier extends Notifier<AuthState> {
     }
   }
 
-  /// Limpia el mensaje de error actual (p. ej. al volver a escribir).
+  /// Limpia los mensajes de estado cuando la persona vuelve a editar el form.
   void clearError() {
-    if (state.errorMessage != null) {
-      state = state.copyWith();
+    if (state.errorMessage != null || state.successMessage != null) {
+      state = state.copyWith(clearMessages: true);
     }
   }
 

@@ -32,8 +32,13 @@ class AuthRepository {
   MfaEnrollment? get pendingEnrollment => _pendingEnrollment;
 
   Future<AuthState> restoreSession() async {
-    final user = SupabaseService.client?.auth.currentUser;
+    final client = SupabaseService.client;
+    final user = client?.auth.currentUser;
     if (user == null) return const AuthState.unauthenticated();
+    if (user.emailConfirmedAt == null) {
+      await client!.auth.signOut();
+      return const AuthState.unauthenticated();
+    }
     _state = await _stateFromUser(user);
     return _state;
   }
@@ -54,6 +59,12 @@ class AuthRepository {
         final user = response.user;
         if (user == null) {
           throw const AuthException('Supabase no devolvió un usuario válido.');
+        }
+        if (user.emailConfirmedAt == null) {
+          await client.auth.signOut();
+          throw const AuthException(
+            'Confirma tu correo electrónico antes de iniciar sesión.',
+          );
         }
         _state = await _stateFromUser(user, fallbackRole: role);
         return _state;
@@ -103,29 +114,83 @@ class AuthRepository {
         if (user == null) {
           throw const AuthException('Supabase no devolvió un usuario válido.');
         }
-        if (response.session == null) {
+        if (user.emailConfirmedAt != null) {
+          if (response.session != null) {
+            await client.auth.signOut();
+          }
           throw const AuthException(
-            'Cuenta creada. Confirma tu correo electrónico y luego inicia sesión.',
+            'Supabase está permitiendo el registro sin verificar el correo. '
+            'Activa la confirmación de correo en la configuración de Auth '
+            'para impedir el acceso antes de verificar.',
           );
         }
-        _state = await _stateFromUser(user, fallbackRole: role);
+        if (response.session != null) {
+          await client.auth.signOut();
+        }
+        _state = AuthState.emailConfirmationPending(email.trim());
         return _state;
       } on supabase.AuthException catch (error) {
         throw AuthException(error.message);
       }
     }
 
-    // MOCK: simulacion de registro con rol obligatorio
-    await Future.delayed(const Duration(milliseconds: 700));
-    _state = AuthState.authenticated(
-      userId: 'mock_user',
-      email: email,
-      displayName: name,
-      role: role,
-      phone: phone,
-      city: city,
+    throw const AuthException(
+      'La app está en modo de prueba y no puede enviar correos. '
+      'Configura Supabase para habilitar el registro con verificación.',
     );
-    return _state;
+  }
+
+  Future<AuthState> verifyEmailCode({
+    required String email,
+    required String code,
+  }) async {
+    final client = SupabaseService.client;
+    if (client == null) {
+      throw const AuthException(
+        'Supabase no está configurado; no se pueden verificar códigos.',
+      );
+    }
+
+    try {
+      final response = await client.auth.verifyOTP(
+        email: email.trim(),
+        token: code.trim(),
+        type: supabase.OtpType.signup,
+      );
+      final user = response.user;
+      if (user == null || response.session == null) {
+        throw const AuthException(
+          'No se pudo verificar el correo. Solicita un código nuevo.',
+        );
+      }
+      if (user.emailConfirmedAt == null) {
+        await client.auth.signOut();
+        throw const AuthException(
+          'El correo aún no aparece verificado. Revisa el código e inténtalo de nuevo.',
+        );
+      }
+      _state = await _stateFromUser(user);
+      return _state;
+    } on supabase.AuthException catch (error) {
+      throw AuthException(error.message);
+    }
+  }
+
+  Future<void> resendEmailCode(String email) async {
+    final client = SupabaseService.client;
+    if (client == null) {
+      throw const AuthException(
+        'Supabase no está configurado; no se pueden enviar códigos.',
+      );
+    }
+    try {
+      await client.auth.resend(
+        email: email.trim(),
+        type: supabase.OtpType.signup,
+      );
+    } on supabase.AuthException catch (error) {
+      throw AuthException(error.message);
+    }
   }
 
   /// Prepara el SDK de Google Sign-In.
