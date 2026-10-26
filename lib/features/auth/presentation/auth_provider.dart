@@ -40,13 +40,7 @@ class AuthNotifier extends Notifier<AuthState> {
   }) async {
     state = const AuthState.loading();
     try {
-      final twoFactor = await StorageService.getTwoFactorEnabled();
-      state = await repo.loginEmailPassword(
-        email,
-        password,
-        role: role,
-        twoFactorEnabled: twoFactor,
-      );
+      state = await repo.loginEmailPassword(email, password, role: role);
       await _persist();
     } on AuthException catch (e) {
       state = AuthState.failure(e.message);

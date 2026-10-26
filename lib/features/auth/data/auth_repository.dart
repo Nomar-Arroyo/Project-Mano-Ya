@@ -47,46 +47,47 @@ class AuthRepository {
     String email,
     String password, {
     UserRole role = UserRole.client,
-    bool twoFactorEnabled = false,
   }) async {
     final client = SupabaseService.client;
-    if (client != null) {
-      try {
-        final response = await client.auth.signInWithPassword(
-          email: email.trim(),
-          password: password,
-        );
-        final user = response.user;
-        if (user == null) {
-          throw const AuthException('Supabase no devolvió un usuario válido.');
-        }
-        if (user.emailConfirmedAt == null) {
-          await client.auth.signOut();
-          throw const AuthException(
-            'Confirma tu correo electrónico antes de iniciar sesión.',
-          );
-        }
-        _state = await _stateFromUser(user, fallbackRole: role);
-        return _state;
-      } on supabase.AuthException catch (error) {
-        throw AuthException(error.message);
-      }
+    if (client == null) {
+      throw const AuthException(
+        'No hay conexión con Supabase. Configura el backend para iniciar sesión.',
+      );
     }
 
-    // MOCK: simulacion de login
-    await Future.delayed(const Duration(milliseconds: 600));
-    // Defensivo: con backend real aquí se validarían las credenciales.
-    if (email.trim().isEmpty || password.length < 6) {
-      throw const AuthException('Correo o contraseña incorrectos.');
+    try {
+      final response = await client.auth.signInWithPassword(
+        email: email.trim(),
+        password: password,
+      );
+      final user = response.user;
+      if (user == null) {
+        throw const AuthException('Supabase no devolvió un usuario válido.');
+      }
+      if (user.emailConfirmedAt == null) {
+        await client.auth.signOut();
+        throw const AuthException(
+          'Confirma tu correo electrónico antes de iniciar sesión.',
+        );
+      }
+      _state = await _stateFromUser(user, fallbackRole: role);
+      return _state;
+    } on supabase.AuthException catch (error) {
+      if (error.code == 'invalid_credentials' ||
+          error.code == 'user_not_found' ||
+          error.message.toLowerCase().contains('invalid login credentials')) {
+        throw const AuthException(
+          'No se pudo iniciar sesión. Verifica tu correo y contraseña. '
+          'Si aún no tienes cuenta, regístrate.',
+        );
+      }
+      if (error.code == 'email_not_confirmed') {
+        throw const AuthException(
+          'Confirma tu correo electrónico antes de iniciar sesión.',
+        );
+      }
+      throw AuthException(error.message);
     }
-    _state = AuthState.authenticated(
-      userId: 'mock_user',
-      email: email,
-      displayName: email.split('@').first,
-      role: role,
-      twoFactorEnabled: twoFactorEnabled,
-    );
-    return _state;
   }
 
   Future<AuthState> register({
