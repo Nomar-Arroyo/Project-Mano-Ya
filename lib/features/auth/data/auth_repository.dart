@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 
@@ -24,6 +28,7 @@ class AuthRepository {
   // Evita inicializar dos veces el SDK de Google (el navegador reconstruye
   // el boton y el SDK lanza un error si se inicializa dos veces).
   bool _googleInicializado = false;
+  String? _googleRawNonce;
 
   // Enrolamiento TOTP pendiente de confirmar con el primer código.
   MfaEnrollment? _pendingEnrollment;
@@ -210,6 +215,11 @@ class AuthRepository {
       );
     }
     if (_googleInicializado) return;
+    final client = SupabaseService.client;
+    _googleRawNonce = kIsWeb ? null : client?.auth.generateRawNonce();
+    final hashedNonce = _googleRawNonce == null
+        ? null
+        : sha256.convert(utf8.encode(_googleRawNonce!)).toString();
     await GoogleSignIn.instance.initialize(
       clientId: AppConfig.googleClientId.isEmpty
           ? null
@@ -217,6 +227,7 @@ class AuthRepository {
       serverClientId: AppConfig.googleServerClientId.isEmpty
           ? null
           : AppConfig.googleServerClientId,
+      nonce: hashedNonce,
     );
     _googleInicializado = true;
   }
@@ -299,6 +310,7 @@ class AuthRepository {
       final response = await client.auth.signInWithIdToken(
         provider: supabase.OAuthProvider.google,
         idToken: idToken,
+        nonce: _googleRawNonce,
       );
 
       final user = response.user;
