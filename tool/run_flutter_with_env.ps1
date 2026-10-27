@@ -7,6 +7,9 @@ param(
   # interfaz: splash, catálogo, perfil y redirección a WhatsApp.
   [switch]$ModoDemo,
 
+  # Muestra el flujo ficticio de pago móvil en Cobros.
+  [switch]$PagosDemo,
+
   # No corta aunque la clave publica siga siendo el valor de ejemplo.
   [switch]$PermitirClaveDeEjemplo,
 
@@ -90,6 +93,9 @@ if (-not [string]::IsNullOrWhiteSpace($googleServerClientId)) {
 }
 if (-not [string]::IsNullOrWhiteSpace($webAppUrl)) {
   $defines += "--dart-define=WEB_APP_URL=$webAppUrl"
+}
+if ($PagosDemo) {
+  $defines += '--dart-define=PAYMENTS_DEMO=true'
 }
 
 & flutter $Command @FlutterArgs @defines

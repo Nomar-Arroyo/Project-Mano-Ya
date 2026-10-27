@@ -9,8 +9,10 @@ import '../../../shared/models/user_role.dart';
 import '../../../shared/widgets/async_state_views.dart';
 import '../../domain/charge.dart';
 import '../billing_provider.dart';
+import '../payments_demo_config.dart';
 import 'charge_detail_page.dart';
 import 'charge_form_page.dart';
+import 'payments_demo_list_page.dart';
 import '../widgets/charge_status_chip.dart';
 
 /// Lista de solicitudes de cobro/pagos. El trabajador puede crear nuevas;
@@ -20,6 +22,8 @@ class ChargesListPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (PaymentsDemoConfig.enabled) return const PaymentsDemoListPage();
+
     final chargesAsync = ref.watch(chargesListProvider);
     final isWorker = ref.watch(authStateProvider).role == UserRole.worker;
 

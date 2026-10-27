@@ -64,6 +64,7 @@ service-account*.json
 firebase-adminsdk*.json
 .vercel/
 n8n_data/
+recovery-codes.txt
 
 # Estado local de la CLI de Supabase (project ref y tokens del enlace).
 supabase/.temp/

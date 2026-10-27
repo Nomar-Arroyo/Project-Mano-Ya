@@ -1,8 +1,9 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+import '../../../../core/config/app_config.dart';
 import '../../../shared/models/user_role.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../data/auth_repository.dart';
@@ -36,10 +37,16 @@ class GoogleSignInButton extends ConsumerStatefulWidget {
 
 class _GoogleSignInButtonState extends ConsumerState<GoogleSignInButton> {
   bool _listo = false;
+  bool _modoDemo = false;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
+    if (!AppConfig.hasSupabaseCredentials && kDebugMode) {
+      _modoDemo = true;
+      return;
+    }
     if (kIsWeb) _prepararWeb();
   }
 
@@ -68,15 +75,17 @@ class _GoogleSignInButtonState extends ConsumerState<GoogleSignInButton> {
       if (mounted) setState(() => _listo = true);
     } on AuthException catch (error) {
       if (!mounted) return;
-      setState(() => _listo = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(error.message)));
+      setState(() {
+        _listo = false;
+        _errorMessage = error.message;
+      });
     } catch (error) {
       if (!mounted) return;
-      setState(() => _listo = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudo iniciar Google: $error')),
-      );
+      setState(() {
+        _listo = false;
+        _errorMessage =
+            'No se pudo cargar Google. Revisa la configuración OAuth.';
+      });
     }
   }
 
@@ -93,7 +102,28 @@ class _GoogleSignInButtonState extends ConsumerState<GoogleSignInButton> {
 
   @override
   Widget build(BuildContext context) {
+    if (_modoDemo) {
+      return AppButton(
+        label: 'Continuar con Google (demo)',
+        icon: Icons.g_mobiledata,
+        variant: AppButtonVariant.outline,
+        onPressed: () =>
+            ref.read(authStateProvider.notifier).signInWithGoogle(widget.role),
+      );
+    }
+
     if (kIsWeb) {
+      if (_errorMessage != null) {
+        return SizedBox(
+          height: 44,
+          child: Center(
+            child: Text(
+              _errorMessage!,
+              textAlign: TextAlign.center,
+            ),
+          ),
+        );
+      }
       if (!_listo) {
         return const SizedBox(
           height: 44,

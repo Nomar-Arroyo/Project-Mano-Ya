@@ -65,7 +65,9 @@ implementación, las pruebas y la defensa final ante el jurado.
 - **Módulo de cobro**: solicitud de cobro con datos bancarios/pago móvil,
   **plan de cuotas/hitos** (pago único, 2, 4 o quincenal) con tabla de estado
   (`Pagada` / `Pendiente`), confirmación de pago y **recibo en PDF** con el
-  sello *"TRABAJO PAGADO / GARANTIZADO"*.
+  sello *"TRABAJO PAGADO / GARANTIZADO"*. Incluye un flujo de pago móvil
+  **DEMO** seleccionable con datos ficticios, comisión visible (15% Mano Ya /
+  85% trabajador) y reportes registrados en una bandeja simulada.
 - **Imágenes en la nube**: las fotos de perfil y del portafolio se suben a los
   buckets públicos `avatars` y `portfolios` de Supabase Storage.
 
@@ -128,6 +130,9 @@ flutter pub get
 # 2. Ejecutar en modo desarrollo sin Supabase (modo mock)
 flutter run
 
+# Ejecutar localmente el flujo ficticio de pagos móviles
+.\tool\run_flutter_with_env.ps1 run -PagosDemo
+
 # Ejecutar con la configuración local de Supabase (.env, no se sube a Git)
 .\tool\run_flutter_with_env.ps1 run
 
@@ -137,6 +142,13 @@ flutter build apk --debug
 # 4. Compilar para web
 flutter build web
 ```
+
+El flujo de pagos DEMO requiere `PAYMENTS_DEMO=true` durante la compilación.
+Vercel lo activa en su build de producción; para verlo localmente usa
+`-PagosDemo` con el script anterior, y para un APK agrega
+`--dart-define=PAYMENTS_DEMO=true` al comando de compilación. Muestra avisos
+DEMO y datos ficticios: no conecta con Stripe ni con bancos, no transfiere
+dinero y no envía correos reales.
 
 ## Configuración de Supabase
 
