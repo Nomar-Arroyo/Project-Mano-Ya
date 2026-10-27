@@ -12,7 +12,7 @@ Guia paso a paso para publicar la version web de **Mano Ya** en
 | Repositorio | `https://github.com/Nomar-Arroyo/Project-Mano-Ya.git` |
 | Rama | `main` |
 | Directorio del proyecto (Root Directory) | `.` (la raiz del repositorio) |
-| Build Command | `flutter build web --release --dart-define=PAYMENTS_DEMO=true` |
+| Build Command | `bash tool/vercel-build.sh` |
 | Output Directory | `build/web` |
 | Version de Flutter | `3.47.7` (stable) |
 | URL asignada por Vercel | `https://project-mano-ya-web.vercel.app` |
@@ -36,18 +36,16 @@ Es la forma mas directa: Vercel compila el codigo cada vez que haces push.
 3. En **Configure Project**:
    - **Framework Preset**: `Other`
    - **Root Directory**: `.` (dejalo como esta)
-   - **Build Command**:
-     ```
-     flutter build web --release --dart-define=SUPABASE_URL=$SUPABASE_URL --dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY --dart-define=GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID --dart-define=GOOGLE_SERVER_CLIENT_ID=$GOOGLE_SERVER_CLIENT_ID --dart-define=WEB_APP_URL=$WEB_APP_URL --dart-define=PAYMENTS_DEMO=true
-     ```
+   - **Build Command**: `bash tool/vercel-build.sh`
    - **Output Directory**: `build/web`
    - **Install Command**: `flutter pub get`
 4. En **Environment Variables** anade las variables de la seccion 3.
 5. Pulsa **Deploy**.
 
 > Vercel lee las variables de entorno del proyecto y las expone al build con
-> el formato `$NOMBRE`. Por eso el build command usa `$SUPABASE_URL` y no
-> `${{ secrets.SUPABASE_URL }}` (esa sintaxis es de GitHub Actions).
+> el formato `$NOMBRE`. El script compila Flutter con esas variables y activa
+> el pago DEMO. Mantiene corto el `buildCommand` para respetar el límite de
+> 256 caracteres del esquema de `vercel.json`.
 
 ### Si el build falla con "flutter: command not found"
 
