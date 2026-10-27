@@ -11,15 +11,21 @@ import '../../../core/services/maps_service.dart';
 /// con nombre y coordenadas para filtrar u ordenar trabajadores cercanos.
 class CityAutocompleteField extends StatefulWidget {
   final String label;
+  final String? hintText;
+  final String? helperText;
   final String? initialText;
   final ValueChanged<Place> onSelected;
+  final ValueChanged<String>? onChanged;
   final VoidCallback? onCleared;
 
   const CityAutocompleteField({
     super.key,
     this.label = 'Ciudad/zona',
+    this.hintText,
+    this.helperText,
     this.initialText,
     required this.onSelected,
+    this.onChanged,
     this.onCleared,
   });
 
@@ -63,6 +69,7 @@ class _CityAutocompleteFieldState extends State<CityAutocompleteField> {
   void _onTextChanged() {
     if (_suppress) return;
     final text = _controller.text.trim();
+    widget.onChanged?.call(text);
 
     if (text.length < 3) {
       _debounce?.cancel();
@@ -122,6 +129,9 @@ class _CityAutocompleteFieldState extends State<CityAutocompleteField> {
               },
               decoration: InputDecoration(
                 labelText: widget.label,
+                hintText:
+                    widget.hintText ?? 'Escribe ciudad, parroquia o sector',
+                helperText: widget.helperText,
                 suffixIcon: _loading
                     ? const Padding(
                         padding: EdgeInsets.all(12),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// Campo de texto estandarizado con etiqueta, icono y validación.
 ///
@@ -17,6 +18,8 @@ class AppTextField extends StatefulWidget {
   final TextInputAction? textInputAction;
   final void Function(String)? onFieldSubmitted;
   final Iterable<String>? autofillHints;
+  final List<TextInputFormatter>? inputFormatters;
+  final String? prefixText;
   final int? maxLines;
 
   const AppTextField({
@@ -33,6 +36,8 @@ class AppTextField extends StatefulWidget {
     this.textInputAction,
     this.onFieldSubmitted,
     this.autofillHints,
+    this.inputFormatters,
+    this.prefixText,
     this.maxLines = 1,
   });
 
@@ -50,6 +55,7 @@ class _AppTextFieldState extends State<AppTextField> {
       obscureText: _obscured,
       enabled: widget.enabled,
       keyboardType: widget.keyboardType,
+      inputFormatters: widget.inputFormatters,
       textInputAction: widget.textInputAction,
       autofillHints: widget.autofillHints,
       maxLines: _obscured ? 1 : widget.maxLines,
@@ -59,6 +65,7 @@ class _AppTextFieldState extends State<AppTextField> {
       decoration: InputDecoration(
         labelText: widget.label,
         hintText: widget.hint,
+        prefixText: widget.prefixText,
         prefixIcon: widget.prefixIcon == null
             ? null
             : Icon(widget.prefixIcon, size: 20),

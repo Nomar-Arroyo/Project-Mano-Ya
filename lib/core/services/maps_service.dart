@@ -137,7 +137,7 @@ class MapsService {
         .toList();
   }
 
-  /// Tipos de lugar que se consideran una ciudad, pueblo o zona habitable.
+  /// Tipos de lugar que se consideran zonas habitadas o divisiones locales.
   ///
   /// Nominatim devuelve muchos resultados que son calles, comercios o
   /// puntos de interÃ©s (por ejemplo "Calle Cali" en Caracas). Solo se
@@ -151,10 +151,15 @@ class MapsService {
     'locality',
     'suburb',
     'neighbourhood',
+    'quarter',
+    'residential',
     'city_district',
+    'district',
     'borough',
+    'parish',
     'municipality',
     'county',
+    'state_district',
     'state',
     'administrative',
   };

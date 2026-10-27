@@ -12,6 +12,11 @@ void main() {
         'locality',
         'suburb',
         'neighbourhood',
+        'quarter',
+        'residential',
+        'district',
+        'parish',
+        'state_district',
         'municipality',
         'state',
       ];

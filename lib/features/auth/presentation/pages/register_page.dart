@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/colors.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/utils/venezuelan_phone_input_formatter.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_text_field.dart';
@@ -11,7 +12,6 @@ import '../../../shared/widgets/async_state_views.dart';
 import '../../../shared/widgets/city_autocomplete_field.dart';
 import '../../../shared/widgets/or_divider.dart';
 import '../../../shared/models/user_role.dart';
-import 'email_verification_page.dart';
 import '../../domain/auth_state.dart';
 import '../auth_provider.dart';
 import '../widgets/auth_scaffold.dart';
@@ -53,7 +53,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           email: _emailCtrl.text.trim(),
           password: _passCtrl.text,
           role: _role,
-          phone: _phoneCtrl.text.trim(),
+          phone: VenezuelanPhoneInputFormatter.formatInternational(
+            _phoneCtrl.text,
+          ),
           city: _cityName,
         );
   }
@@ -131,8 +133,10 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             AppTextField(
               controller: _phoneCtrl,
               label: 'Teléfono',
-              hint: '+58 412 000 0000',
+              hint: '412 123 4567',
               prefixIcon: Icons.phone_outlined,
+              prefixText: '+58 ',
+              inputFormatters: const [VenezuelanPhoneInputFormatter()],
               keyboardType: TextInputType.phone,
               textInputAction: TextInputAction.next,
               enabled: !state.loading,

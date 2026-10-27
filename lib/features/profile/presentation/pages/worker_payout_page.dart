@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/colors.dart';
+import '../../../../core/utils/venezuelan_phone_input_formatter.dart';
 import '../../domain/worker_profile.dart';
 import '../profile_provider.dart';
 
@@ -55,7 +56,9 @@ class _WorkerPayoutPageState extends ConsumerState<WorkerPayoutPage> {
   void _hydrate(PayoutInfo payout) {
     if (_holderCtrl.text.isNotEmpty || _numberCtrl.text.isNotEmpty) return;
     _holderCtrl.text = payout.accountHolder;
-    _numberCtrl.text = payout.accountNumber;
+    _numberCtrl.text = payout.method == 'Pago móvil'
+        ? VenezuelanPhoneInputFormatter.formatNational(payout.accountNumber)
+        : payout.accountNumber;
     _bankCtrl.text = payout.bankName ?? '';
     if (payout.method.isNotEmpty) _method = payout.method;
   }
@@ -70,7 +73,11 @@ class _WorkerPayoutPageState extends ConsumerState<WorkerPayoutPage> {
           PayoutInfo(
             method: _method,
             accountHolder: _holderCtrl.text.trim(),
-            accountNumber: _numberCtrl.text.trim(),
+            accountNumber: _method == 'Pago móvil'
+                ? VenezuelanPhoneInputFormatter.formatInternational(
+                    _numberCtrl.text,
+                  )
+                : _numberCtrl.text.trim(),
             bankName:
                 _method == 'Transferencia bancaria' &&
                     _bankCtrl.text.trim().isNotEmpty
@@ -147,7 +154,22 @@ class _WorkerPayoutPageState extends ConsumerState<WorkerPayoutPage> {
                       .toList(),
                   validator: (value) =>
                       value == null ? 'Selecciona un método de pago' : null,
-                  onChanged: (value) => setState(() => _method = value ?? ''),
+                  onChanged: (value) {
+                    final method = value ?? '';
+                    if (method == 'Pago móvil') {
+                      final formatted =
+                          VenezuelanPhoneInputFormatter.formatNational(
+                            _numberCtrl.text,
+                          );
+                      _numberCtrl.value = TextEditingValue(
+                        text: formatted,
+                        selection: TextSelection.collapsed(
+                          offset: formatted.length,
+                        ),
+                      );
+                    }
+                    setState(() => _method = method);
+                  },
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -164,9 +186,14 @@ class _WorkerPayoutPageState extends ConsumerState<WorkerPayoutPage> {
                 TextFormField(
                   controller: _numberCtrl,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(
+                  inputFormatters: _method == 'Pago móvil'
+                      ? const [VenezuelanPhoneInputFormatter()]
+                      : null,
+                  decoration: InputDecoration(
                     labelText: 'Número de cuenta o celular',
                     prefixIcon: Icon(Icons.dialpad),
+                    hintText: _method == 'Pago móvil' ? '412 123 4567' : null,
+                    prefixText: _method == 'Pago móvil' ? '+58 ' : null,
                   ),
                   validator: (value) => value == null || value.trim().length < 4
                       ? 'Ingresa un número válido'

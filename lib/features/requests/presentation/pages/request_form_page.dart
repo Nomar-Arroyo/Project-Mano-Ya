@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/colors.dart';
+import '../../../../core/utils/formatters.dart';
+import '../../../shared/widgets/city_autocomplete_field.dart';
 import '../../../auth/presentation/auth_provider.dart';
 import '../../../jobs/presentation/jobs_provider.dart';
 
@@ -31,17 +33,17 @@ class RequestFormPage extends ConsumerStatefulWidget {
 class _RequestFormPageState extends ConsumerState<RequestFormPage> {
   final _formKey = GlobalKey<FormState>();
   final _descCtrl = TextEditingController();
-  final _dateCtrl = TextEditingController();
-  final _addressCtrl = TextEditingController();
+  final _locationDetailsCtrl = TextEditingController();
   final _priceCtrl = TextEditingController();
+  DateTime? _selectedDate;
+  String _serviceLocation = '';
   String _type = 'Servicio estándar';
   bool _sending = false;
 
   @override
   void dispose() {
     _descCtrl.dispose();
-    _dateCtrl.dispose();
-    _addressCtrl.dispose();
+    _locationDetailsCtrl.dispose();
     _priceCtrl.dispose();
     super.dispose();
   }
@@ -66,20 +68,47 @@ class _RequestFormPageState extends ConsumerState<RequestFormPage> {
                 validator: (v) => v == null || v.isEmpty ? 'Requerido' : null,
               ),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: _dateCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Fecha requerida (dd/mm/aaaa)',
+              FormField<DateTime>(
+                validator: (value) =>
+                    value == null ? 'Selecciona la fecha de la cita' : null,
+                builder: (field) => InkWell(
+                  onTap: () => _selectDate(field),
+                  borderRadius: BorderRadius.circular(12),
+                  child: InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: 'Fecha de la cita',
+                      suffixIcon: IconButton(
+                        tooltip: 'Abrir calendario',
+                        onPressed: () => _selectDate(field),
+                        icon: const Icon(Icons.calendar_month_outlined),
+                      ),
+                      errorText: field.errorText,
+                    ),
+                    child: Text(
+                      field.value == null
+                          ? 'Seleccionar fecha'
+                          : Formatters.date(field.value!),
+                    ),
+                  ),
                 ),
-                validator: (v) => _parseDate(v ?? '') == null
-                    ? 'Usa el formato dd/mm/aaaa'
-                    : null,
+                initialValue: _selectedDate,
+              ),
+              const SizedBox(height: 12),
+              CityAutocompleteField(
+                label: 'Localidad, parroquia o sector',
+                hintText: 'Busca una zona específica',
+                helperText: 'Ej.: parroquia, urbanización o sector',
+                onSelected: (place) =>
+                    setState(() => _serviceLocation = place.displayName),
+                onChanged: (value) => _serviceLocation = value,
+                onCleared: () => _serviceLocation = '',
               ),
               const SizedBox(height: 12),
               TextFormField(
-                controller: _addressCtrl,
+                controller: _locationDetailsCtrl,
                 decoration: const InputDecoration(
-                  labelText: 'Dirección o zona del servicio (opcional)',
+                  labelText: 'Dirección o punto de referencia (opcional)',
+                  hintText: 'Calle, avenida, edificio o referencia',
                 ),
               ),
               const SizedBox(height: 12),
@@ -151,9 +180,14 @@ class _RequestFormPageState extends ConsumerState<RequestFormPage> {
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
-    final scheduledAt = _parseDate(_dateCtrl.text) ?? DateTime.now();
+    final scheduledAt = _selectedDate!;
     final price = _parsePrice(_priceCtrl.text.trim()) ?? 0;
     final auth = ref.read(authStateProvider);
+    final locationDetails = _locationDetailsCtrl.text.trim();
+    final address = [
+      _serviceLocation.trim(),
+      if (locationDetails.isNotEmpty) locationDetails,
+    ].where((part) => part.isNotEmpty).join(', ');
 
     setState(() => _sending = true);
     try {
@@ -167,7 +201,7 @@ class _RequestFormPageState extends ConsumerState<RequestFormPage> {
             description: _descCtrl.text.trim(),
             price: price,
             scheduledAt: scheduledAt,
-            address: _addressCtrl.text.trim(),
+            address: address,
             workerId: widget.workerId,
             workerName: widget.workerName,
             clientId: auth.userId,
@@ -191,24 +225,30 @@ class _RequestFormPageState extends ConsumerState<RequestFormPage> {
     }
   }
 
+  Future<void> _selectDate(FormFieldState<DateTime> field) async {
+    final today = DateUtils.dateOnly(DateTime.now());
+    final selectedDate = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate ?? today,
+      firstDate: today,
+      lastDate: DateTime(today.year + 5),
+      helpText: 'Selecciona la fecha de la cita',
+      cancelText: 'Cancelar',
+      confirmText: 'Aceptar',
+    );
+    if (selectedDate == null || !mounted) return;
+    setState(() {
+      _selectedDate = DateUtils.dateOnly(selectedDate);
+    });
+    field.didChange(_selectedDate);
+  }
+
   /// Usa la descripción como título de la solicitud (recortada).
   String _buildTitle() {
     final description = _descCtrl.text.trim().replaceAll('\n', ' ');
     if (description.isEmpty) return _type;
     if (description.length <= 60) return description;
     return '${description.substring(0, 57)}...';
-  }
-
-  /// Convierte la fecha escrita (dd/mm/aaaa) en una fecha válida.
-  DateTime? _parseDate(String value) {
-    final parts = value.trim().split('/');
-    if (parts.length != 3) return null;
-    final day = int.tryParse(parts[0].trim());
-    final month = int.tryParse(parts[1].trim());
-    final year = int.tryParse(parts[2].trim());
-    if (day == null || month == null || year == null) return null;
-    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-    return DateTime(year, month, day);
   }
 
   /// Convierte el presupuesto escrito en un número.

@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../../core/constants/colors.dart';
 import '../../../../core/services/supabase_storage_service.dart';
 import '../../../../core/utils/local_image.dart';
+import '../../../../core/utils/venezuelan_phone_input_formatter.dart';
 import '../../../auth/presentation/auth_provider.dart';
 import '../../../shared/models/user_role.dart';
 import '../../../shared/widgets/city_autocomplete_field.dart';
@@ -38,7 +39,9 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
     super.initState();
     final state = ref.read(authStateProvider);
     _nameCtrl = TextEditingController(text: state.displayName ?? '');
-    _phoneCtrl = TextEditingController(text: state.phone ?? '');
+    _phoneCtrl = TextEditingController(
+      text: VenezuelanPhoneInputFormatter.formatNational(state.phone ?? ''),
+    );
     _bioCtrl = TextEditingController();
     _cityName = state.city;
     _avatarUrl = state.avatarUrl;
@@ -116,7 +119,9 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
         .read(authStateProvider.notifier)
         .updateProfile(
           displayName: _nameCtrl.text.trim(),
-          phone: _phoneCtrl.text.trim(),
+          phone: VenezuelanPhoneInputFormatter.formatInternational(
+            _phoneCtrl.text,
+          ),
           city: _cityName,
           avatarUrl: _avatarUrl,
         );
@@ -193,7 +198,12 @@ class _ProfileEditPageState extends ConsumerState<ProfileEditPage> {
                 TextFormField(
                   controller: _phoneCtrl,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(labelText: 'Teléfono'),
+                  inputFormatters: const [VenezuelanPhoneInputFormatter()],
+                  decoration: const InputDecoration(
+                    labelText: 'Teléfono',
+                    hintText: '412 123 4567',
+                    prefixText: '+58 ',
+                  ),
                 ),
                 const SizedBox(height: 12),
                 // Zona/ciudad con autocompletado geolocalizado.
