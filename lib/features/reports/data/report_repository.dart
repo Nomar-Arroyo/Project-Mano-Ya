@@ -36,8 +36,8 @@ class ReportRepository {
 
   ReportRepository({
     this._reportSaver,
-    ReportNotifier? reportNotifier,
-  }) : _reportNotifier = reportNotifier;
+    this._reportNotifier,
+  });
 
   /// Guarda un reporte y notifica a soporte cuando existe una fila persistida.
   Future<ReportSubmission> submit({
