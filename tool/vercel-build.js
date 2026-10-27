@@ -1,4 +1,5 @@
 const { spawnSync } = require('node:child_process');
+const path = require('node:path');
 
 const defines = [
   `--dart-define=SUPABASE_URL=${process.env.SUPABASE_URL || ''}`,
@@ -9,8 +10,10 @@ const defines = [
   '--dart-define=PAYMENTS_DEMO=true',
 ];
 
+const flutterRoot = process.env.FLUTTER_ROOT || '/tmp/flutter';
+const flutter = process.env.FLUTTER_BIN || path.join(flutterRoot, 'bin', 'flutter');
 const result = spawnSync(
-  'flutter',
+  flutter,
   ['build', 'web', '--release', '--base-href=/', ...defines],
   { stdio: 'inherit' },
 );

@@ -38,7 +38,8 @@ Es la forma mas directa: Vercel compila el codigo cada vez que haces push.
    - **Root Directory**: `.` (dejalo como esta)
    - **Build Command**: `node tool/vercel-build.js`
    - **Output Directory**: `build/web`
-   - **Install Command**: `flutter pub get`
+   - **Install Command**:
+     `git clone --depth 1 --branch 3.47.7 https://github.com/flutter/flutter.git /tmp/flutter`
 4. En **Environment Variables** anade las variables de la seccion 3.
 5. Pulsa **Deploy**.
 
@@ -46,6 +47,8 @@ Es la forma mas directa: Vercel compila el codigo cada vez que haces push.
 > el formato `$NOMBRE`. El script Node compila Flutter con esas variables y activa
 > el pago DEMO. Mantiene corto el `buildCommand` para respetar el límite de
 > 256 caracteres del esquema de `vercel.json`.
+> El lanzador usa el SDK instalado en `/tmp/flutter/bin/flutter`; el comando
+> de instalación debe dejarlo en esa ruta.
 
 ### Si el build falla con "flutter: command not found"
 
