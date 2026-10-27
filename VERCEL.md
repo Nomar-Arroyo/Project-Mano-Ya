@@ -12,7 +12,7 @@ Guia paso a paso para publicar la version web de **Mano Ya** en
 | Repositorio | `https://github.com/Nomar-Arroyo/Project-Mano-Ya.git` |
 | Rama | `main` |
 | Directorio del proyecto (Root Directory) | `.` (la raiz del repositorio) |
-| Build Command | `bash tool/vercel-build.sh` |
+| Build Command | `sh tool/vercel-build.sh` |
 | Output Directory | `build/web` |
 | Version de Flutter | `3.47.7` (stable) |
 | URL asignada por Vercel | `https://project-mano-ya-web.vercel.app` |
@@ -36,7 +36,7 @@ Es la forma mas directa: Vercel compila el codigo cada vez que haces push.
 3. En **Configure Project**:
    - **Framework Preset**: `Other`
    - **Root Directory**: `.` (dejalo como esta)
-   - **Build Command**: `bash tool/vercel-build.sh`
+   - **Build Command**: `sh tool/vercel-build.sh`
    - **Output Directory**: `build/web`
    - **Install Command**: `flutter pub get`
 4. En **Environment Variables** anade las variables de la seccion 3.

@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "bash tool/vercel-build.sh",
+  "buildCommand": "sh tool/vercel-build.sh",
   "outputDirectory": "build/web",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
