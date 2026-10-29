@@ -136,7 +136,7 @@ class AuthRepository {
         _state = AuthState.emailConfirmationPending(email.trim());
         return _state;
       } on supabase.AuthException catch (error) {
-        throw AuthException(error.message);
+        throw _emailDeliveryError(error);
       }
     }
 
@@ -178,7 +178,7 @@ class AuthRepository {
       _state = await _stateFromUser(user);
       return _state;
     } on supabase.AuthException catch (error) {
-      throw AuthException(error.message);
+      throw _emailDeliveryError(error);
     }
   }
 
@@ -195,8 +195,34 @@ class AuthRepository {
         type: supabase.OtpType.signup,
       );
     } on supabase.AuthException catch (error) {
-      throw AuthException(error.message);
+      throw _emailDeliveryError(error);
     }
+  }
+
+  /// Traduce los errores de envío de correo de Supabase a un mensaje útil.
+  ///
+  /// El SMTP integrado de Supabase limita los envíos por hora. Cuando se
+  /// agota, GoTrue responde `over_email_send_rate_limit` y no envía nada,
+  /// así que conviene decirlo con claridad en vez de mostrar el texto en
+  /// inglés.
+  AuthException _emailDeliveryError(supabase.AuthException error) {
+    final code = error.code ?? '';
+    final message = error.message.toLowerCase();
+    if (code == 'over_email_send_rate_limit' ||
+        message.contains('rate limit') ||
+        message.contains('too many')) {
+      return const AuthException(
+        'Se enviaron demasiados correos en poco tiempo. Espera unos minutos '
+        'antes de pedir otro código, revisa la carpeta de spam o entra con '
+        'Google.',
+      );
+    }
+    if (code == 'email_address_invalid' || message.contains('invalid email')) {
+      return const AuthException(
+        'Ese correo no parece válido. Revísalo e inténtalo de nuevo.',
+      );
+    }
+    return AuthException(error.message);
   }
 
   /// Prepara el SDK de Google Sign-In.

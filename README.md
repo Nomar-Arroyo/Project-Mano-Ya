@@ -188,6 +188,23 @@ la configuración debe corregirse. En modo mock no se crean cuentas ni se envía
 correos. El inicio de sesión con Google usa la verificación gestionada por
 Google.
 
+#### SMTP propio (obligatorio para producción)
+
+El SMTP integrado de Supabase solo entrega unos pocos correos por hora y, en
+varios planes, únicamente a direcciones del equipo del proyecto. Al superar el
+cupo, GoTrue responde `429 over_email_send_rate_limit` y **no envía nada**, así
+que el registro termina sin código (la app ya muestra ese caso en español).
+
+Para que los códigos lleguen a cualquier usuario:
+
+1. Verifica un dominio de envío en Resend, Brevo o el proveedor que uses.
+2. En el panel: **Authentication > Emails > SMTP Settings** y completa host,
+   puerto, usuario, contraseña y remitente (por ejemplo
+   `Mano Ya <no-reply@manoya.app>`).
+3. En **Authentication > Rate Limits** sube el límite de correos por hora.
+4. Envía un registro de prueba y revisa spam la primera vez: el remitente por
+   defecto de Supabase tiene mala reputación.
+
 ### Inicio de sesión con Google (OAuth)
 
 En el mismo `.env` se agregaron dos variables opcionales:
