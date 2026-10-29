@@ -120,6 +120,15 @@ class AuthRepository {
         if (user == null) {
           throw const AuthException('Supabase no devolvió un usuario válido.');
         }
+        // Supabase responde 200 con `identities` vacío cuando el correo ya
+        // tiene cuenta. Es una medida anti-enumeración y no envía ningún
+        // correo, así que conviene decirlo en vez de dejar al usuario
+        // esperando un código que nunca va a llegar.
+        if (user.identities != null && user.identities!.isEmpty) {
+          throw const AuthException(
+            'Ese correo ya tiene una cuenta. Inicia sesión con tu contraseña.',
+          );
+        }
         if (user.emailConfirmedAt != null) {
           if (response.session != null) {
             await client.auth.signOut();
