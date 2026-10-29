@@ -51,8 +51,10 @@ class ProfileRepository {
     return '$prefix-${DateTime.now().millisecondsSinceEpoch}-$_mockSequence';
   }
 
-  /// Indica si el backend de Supabase está disponible.
-  bool get _hasBackend => SupabaseService.client != null;
+  bool _isCurrentUser(String userId) {
+    final user = SupabaseService.client?.auth.currentUser;
+    return user != null && user.id == userId;
+  }
 
   // ------------------------------------------------------------------
   // PERFIL DEL TRABAJADOR
@@ -69,7 +71,7 @@ class ProfileRepository {
     String? city,
     String? avatarUrl,
   }) async {
-    if (_hasBackend) {
+    if (_isCurrentUser(userId)) {
       try {
         final data = await SupabaseService.client!
             .from(profilesTable)
@@ -106,7 +108,7 @@ class ProfileRepository {
 
   /// Guarda (o actualiza) el perfil extendido del trabajador.
   Future<void> saveWorkerProfile(WorkerProfile profile) async {
-    if (_hasBackend) {
+    if (_isCurrentUser(profile.ownerId)) {
       try {
         await SupabaseService.client!
             .from(profilesTable)
@@ -131,7 +133,7 @@ class ProfileRepository {
 
   /// Carga las fotos del portafolio del trabajador ordenadas por posición.
   Future<List<PortfolioItem>> loadPortfolio(String userId) async {
-    if (_hasBackend) {
+    if (_isCurrentUser(userId)) {
       try {
         final data = await SupabaseService.client!
             .from(portfolioTable)
@@ -164,7 +166,7 @@ class ProfileRepository {
       position: current.length,
     );
 
-    if (_hasBackend) {
+    if (_isCurrentUser(userId)) {
       try {
         final inserted = await SupabaseService.client!
             .from(portfolioTable)
@@ -191,7 +193,7 @@ class ProfileRepository {
     required String userId,
     required String itemId,
   }) async {
-    if (_hasBackend) {
+    if (_isCurrentUser(userId)) {
       try {
         await SupabaseService.client!
             .from(portfolioTable)
@@ -218,7 +220,7 @@ class ProfileRepository {
 
   /// Carga las direcciones/zonas guardadas por el cliente.
   Future<List<SavedAddress>> loadAddresses(String userId) async {
-    if (_hasBackend) {
+    if (_isCurrentUser(userId)) {
       try {
         final data = await SupabaseService.client!
             .from(addressesTable)
@@ -244,7 +246,7 @@ class ProfileRepository {
       id: address.id.isEmpty ? _nextId('addr') : address.id,
     );
 
-    if (_hasBackend) {
+    if (_isCurrentUser(userId)) {
       try {
         final inserted = await SupabaseService.client!
             .from(addressesTable)
@@ -274,7 +276,7 @@ class ProfileRepository {
     required String userId,
     required String addressId,
   }) async {
-    if (_hasBackend) {
+    if (_isCurrentUser(userId)) {
       try {
         await SupabaseService.client!
             .from(addressesTable)
@@ -293,7 +295,7 @@ class ProfileRepository {
     required String userId,
     required String addressId,
   }) async {
-    if (_hasBackend) {
+    if (_isCurrentUser(userId)) {
       try {
         await SupabaseService.client!
             .from(addressesTable)
@@ -323,7 +325,7 @@ class ProfileRepository {
 
   /// Carga los ids de los trabajadores favoritos del cliente.
   Future<List<String>> loadFavoriteWorkerIds(String userId) async {
-    if (_hasBackend) {
+    if (_isCurrentUser(userId)) {
       try {
         final data = await SupabaseService.client!
             .from(favoritesTable)
@@ -344,7 +346,7 @@ class ProfileRepository {
     required String userId,
     required String workerId,
   }) async {
-    if (_hasBackend) {
+    if (_isCurrentUser(userId)) {
       try {
         await SupabaseService.client!.from(favoritesTable).insert({
           'client_id': userId,
@@ -362,7 +364,7 @@ class ProfileRepository {
     required String userId,
     required String workerId,
   }) async {
-    if (_hasBackend) {
+    if (_isCurrentUser(userId)) {
       try {
         await SupabaseService.client!
             .from(favoritesTable)

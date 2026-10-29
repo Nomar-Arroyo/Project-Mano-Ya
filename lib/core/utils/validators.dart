@@ -1,7 +1,14 @@
 /// Validadores de formularios reutilizables (mensajes en español).
 class Validators {
   static final RegExp _email = RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$');
-  static final RegExp _phone = RegExp(r'^[0-9+\s()-]{7,}$');
+  static const _venezuelanMobilePrefixes = {
+    '412',
+    '414',
+    '416',
+    '422',
+    '424',
+    '426',
+  };
 
   /// Campo obligatorio genérico.
   static String? required(
@@ -38,7 +45,18 @@ class Validators {
   /// Número de teléfono.
   static String? phone(String? value) {
     if (value == null || value.trim().isEmpty) return 'Ingresa tu teléfono';
-    if (!_phone.hasMatch(value.trim())) return 'Teléfono no válido';
+    var digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.startsWith('58') && digits.length == 12) {
+      digits = digits.substring(2);
+    } else if (digits.startsWith('0') && digits.length == 11) {
+      digits = digits.substring(1);
+    }
+
+    if (digits.length != 10 ||
+        digits[0] != '4' ||
+        !_venezuelanMobilePrefixes.contains(digits.substring(0, 3))) {
+      return 'Ingresa un móvil venezolano válido (412, 414, 416, 422, 424 o 426)';
+    }
     return null;
   }
 }

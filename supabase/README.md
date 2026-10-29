@@ -14,6 +14,7 @@ proyecto `waxypsqomsljcljdqwra`.
 | `migrations/20240101000400_historial_trabajos.sql` | Escritura del historial de servicios. |
 | `migrations/20240101000500_webhook_secret.sql` | Secreto del webhook de reportes. |
 | `migrations/20261025000000_backend_security_and_booking.sql` | Protección de datos, catálogo, citas, cobros, reportes, Storage y cuota de IA. |
+| `migrations/20261029000000_add_422_mobile_prefix.sql` | Acepta el prefijo móvil venezolano `422` al normalizar teléfonos. |
 | `functions/recommend-workers/index.ts` | Edge Function opcional para clasificar solicitudes con Ollama y consultar trabajadores reales. |
 
 ## Cómo aplicarlo
@@ -31,6 +32,11 @@ encuentra se detiene y requiere una resolución revisada, no borra registros.
 La restricción solo evita dos trabajos aceptados/en curso con la misma fecha y
 hora exacta; no modela duración ni rangos de solapamiento porque el esquema
 actual no define la duración de los servicios.
+
+La migración `20261029000000_add_422_mobile_prefix.sql` actualiza la función de
+normalización para admitir los móviles con prefijo `422`. Para que el registro
+los acepte en el proyecto remoto, aplica las migraciones pendientes con
+`supabase db push` desde una CLI autenticada y enlazada al proyecto.
 
 ## Qué incluye el esquema
 

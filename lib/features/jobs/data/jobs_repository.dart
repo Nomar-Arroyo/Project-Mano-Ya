@@ -205,12 +205,17 @@ class JobsRepository {
 
   late final List<Job> _jobs;
 
-  /// Indica si el backend de Supabase está disponible.
-  bool get _hasBackend => SupabaseService.client != null;
+  bool _isCurrentUser(String? userId) {
+    final user = SupabaseService.client?.auth.currentUser;
+    return user != null && user.id == userId;
+  }
+
+  bool get _hasAuthenticatedBackend =>
+      SupabaseService.client?.auth.currentUser != null;
 
   /// Trabajos asignados al trabajador (activos, solicitudes e historial).
   Future<List<Job>> listForWorker(String workerId) async {
-    if (_hasBackend) {
+    if (_isCurrentUser(workerId)) {
       try {
         final rows = await SupabaseService.client!
             .from(jobsTable)
@@ -231,7 +236,7 @@ class JobsRepository {
 
   /// Trabajos solicitados por el cliente.
   Future<List<Job>> listForClient(String clientId) async {
-    if (_hasBackend) {
+    if (_isCurrentUser(clientId)) {
       try {
         final rows = await SupabaseService.client!
             .from(jobsTable)
@@ -252,7 +257,7 @@ class JobsRepository {
 
   /// Obtiene un trabajo por id (pantalla de detalle).
   Future<Job?> getById(String id) async {
-    if (_hasBackend) {
+    if (_hasAuthenticatedBackend && _isRealId(id)) {
       try {
         final row = await SupabaseService.client!
             .from(jobsTable)
@@ -279,7 +284,7 @@ class JobsRepository {
   /// Cuando el trabajo viene de Supabase (id uuid) el error se propaga para
   /// que la interfaz avise que el cambio no se pudo guardar.
   Future<Job> updateStatus(String id, JobStatus status) async {
-    if (_hasBackend && _isRealId(id)) {
+    if (_hasAuthenticatedBackend && _isRealId(id)) {
       final row = await SupabaseService.client!
           .from(jobsTable)
           .update({'status': _statusToDb(status)})
@@ -305,7 +310,7 @@ class JobsRepository {
   /// Actualiza la calificación y el comentario del trabajo y guarda la
   /// reseña en la tabla `reviews`.
   Future<Job> rate(String id, {required double rating, String? review}) async {
-    if (_hasBackend && _isRealId(id)) {
+    if (_hasAuthenticatedBackend && _isRealId(id)) {
       final row = await SupabaseService.client!
           .from(jobsTable)
           .update({'rating': rating, 'review': review})
