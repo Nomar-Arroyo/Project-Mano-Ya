@@ -11,14 +11,14 @@
 -- y con /auth/v1/admin/users, así que no depende de los metadatos que
 -- envía la app.
 --
--- Este archivo NO cambia datos: solo lee definiciones y reproduce el
--- alta dentro de una transacción que siempre se deshace.
+-- Este archivo NO deja datos: el alta de prueba va dentro de una
+-- transacción que termina en rollback.
 --
 -- Cómo usarlo:
 --   1. Abre el SQL Editor del proyecto en el panel de Supabase.
---   2. Ejecuta el bloque 5 (el último) y copia el mensaje que empieza
---      por "DIAGNOSTICO:".
---   3. Si el mensaje no basta, ejecuta también los bloques 1 a 4.
+--   2. Ejecuta el bloque 5 completo (incluye begin y rollback).
+--   3. Copia el mensaje de error que muestre el editor.
+--   4. Si el bloque 5 dice "INSERT OK", ejecuta los bloques 1 a 4.
 -- =====================================================================
 
 
@@ -99,56 +99,82 @@ order by 1;
 
 
 -- ---------------------------------------------------------------------
--- 5. Reproducción del alta (siempre se deshace)
+-- 5. Reproducción del alta (rollback garantizado)
 -- ---------------------------------------------------------------------
--- Devuelve "DIAGNOSTICO: OK" si el INSERT funcionó, o el SQLSTATE y el
--- mensaje exactos del fallo. Es el dato que hace falta para corregirlo.
-do $$
-declare
-  nuevo_id uuid := gen_random_uuid();
-  detalle text := 'OK';
-begin
-  begin
-    insert into auth.users (
-      instance_id,
-      id,
-      aud,
-      role,
-      email,
-      encrypted_password,
-      email_confirmed_at,
-      raw_app_meta_data,
-      raw_user_meta_data,
-      created_at,
-      updated_at
-    )
-    values (
-      coalesce(
-        (select u.instance_id from auth.users u limit 1),
-        '00000000-0000-0000-0000-000000000000'::uuid
-      ),
-      nuevo_id,
-      'authenticated',
-      'authenticated',
-      'diagnostico.' || substr(nuevo_id::text, 1, 8) || '@manoya.app',
-      null,
-      now(),
-      '{"provider":"email","providers":["email"]}'::jsonb,
-      '{"full_name":"Diagnostico","role":"client"}'::jsonb,
-      now(),
-      now()
-    );
+-- Ejecuta exactamente el INSERT que hace GoTrue. Si falla, el editor
+-- muestra el SQLSTATE y el mensaje exactos. Si responde "INSERT OK" y
+-- aun así el registro falla, el problema está en auth.identities.
+-- El rollback deja la base como estaba.
+begin;
 
-    -- Si el INSERT pasó, este bloque confirma que el perfil se creó.
-    if not exists (select 1 from public.profiles where id = nuevo_id) then
-      detalle := 'OK pero sin perfil: el trigger handle_new_user no lo creó';
-    end if;
-  exception
-    when others then
-      detalle := sqlstate || ' | ' || sqlerrm;
-  end;
+insert into auth.users (
+  instance_id,
+  id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at
+)
+values (
+  coalesce(
+    (select u.instance_id from auth.users u order by u.created_at limit 1),
+    '00000000-0000-0000-0000-000000000000'::uuid
+  ),
+  gen_random_uuid(),
+  'authenticated',
+  'authenticated',
+  'diagnostico.rollback@manoya.app',
+  null,
+  now(),
+  '{"provider":"email","providers":["email"]}'::jsonb,
+  '{"full_name":"Diagnostico","role":"client"}'::jsonb,
+  now(),
+  now()
+);
 
-  -- Fuerza el rollback: nunca deja el usuario de prueba creado.
-  raise exception 'DIAGNOSTICO: %', detalle;
-end;
-$$;
+select 'INSERT OK' as resultado;
+
+rollback;
+
+
+-- ---------------------------------------------------------------------
+-- 6. Reproducción del alta de identidad (rollback garantizado)
+-- ---------------------------------------------------------------------
+-- Solo hace falta si el bloque 5 responde "INSERT OK". Usa un usuario
+-- real ya existente y deshace todo al final.
+begin;
+
+insert into auth.identities (
+  id,
+  user_id,
+  identity_data,
+  provider,
+  provider_id,
+  last_sign_in_at,
+  created_at,
+  updated_at
+)
+values (
+  gen_random_uuid(),
+  (select u.id from auth.users u where u.email = 'cliente.validacion@manoya.app'),
+  jsonb_build_object(
+    'sub',
+    gen_random_uuid()::text,
+    'email',
+    'diagnostico.rollback@manoya.app'
+  ),
+  'email',
+  gen_random_uuid()::text,
+  now(),
+  now(),
+  now()
+);
+
+select 'IDENTITY OK' as resultado;
+
+rollback;
