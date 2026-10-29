@@ -92,10 +92,10 @@ las pruebas previas):
 > El build command de arriba solo pasa las variables publicas, precisamente
 > para que las claves privadas nunca entren en el bundle de la web.
 >
-> En la web los reportes se authenticate con la sesion del usuario
-> (`Authorization: Bearer <access_token>`) y la Edge Function `notify-report`
-> valida la sesión antes de notificar. No se inyecta ningún secreto de n8n
-> en la web ni en el APK.
+> En la web y en el APK los reportes solo se insertan en `public.reports`:
+> el trigger `reports_notify_n8n` avisa a n8n en segundo plano y n8n llama a
+> la Edge Function `notify-report`. No se inyecta ningún secreto de n8n en el
+> cliente.
 
 Todas estas variables llegan al navegador dentro del bundle, asi que son
 publicas por naturaleza: usa siempre la **clave anon** de Supabase, nunca la

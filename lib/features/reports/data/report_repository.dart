@@ -2,15 +2,11 @@ import '../../../core/services/supabase_service.dart';
 import '../domain/report.dart';
 
 typedef ReportSaver = Future<String?> Function(Map<String, dynamic> payload);
-typedef ReportNotifier = Future<bool> Function(String reportId);
 
 /// Resultado del envío de un reporte.
 class ReportSubmission {
   /// Indica si el reporte quedó registrado en la base de datos.
   final bool saved;
-
-  /// Indica si la notificación al servicio de soporte se completó.
-  final bool notified;
 
   /// Identificador del reporte creado.
   final String? reportId;
@@ -20,26 +16,25 @@ class ReportSubmission {
 
   const ReportSubmission({
     required this.saved,
-    required this.notified,
     this.reportId,
     required this.message,
   });
 }
 
-/// Guarda reportes en Supabase y notifica mediante una Edge Function
-/// autenticada. Ningún secreto de n8n viaja en la aplicación.
+/// Guarda reportes en Supabase.
+///
+/// La notificación al equipo de soporte la hace el trigger
+/// `notify_new_report()` de la base de datos, en segundo plano. La app solo
+/// confirma que la fila quedó guardada: así el secreto del webhook nunca sale
+/// del servidor y un fallo de n8n no impide registrar el reporte.
 class ReportRepository {
   static const String _table = 'reports';
 
   final ReportSaver? _reportSaver;
-  final ReportNotifier? _reportNotifier;
 
-  ReportRepository({
-    this._reportSaver,
-    this._reportNotifier,
-  });
+  ReportRepository({this._reportSaver});
 
-  /// Guarda un reporte y notifica a soporte cuando existe una fila persistida.
+  /// Guarda el reporte en la tabla `reports`.
   Future<ReportSubmission> submit({
     required String reporterId,
     required String reporterName,
@@ -69,28 +64,16 @@ class ReportRepository {
     );
 
     final reportId = await _saveReport(report.toInsertMap());
-    final saved = reportId != null;
-    final notified = saved ? await _notifySavedReport(reportId) : false;
-
-    if (saved && notified) {
+    if (reportId != null) {
       return ReportSubmission(
         saved: true,
-        notified: true,
         reportId: reportId,
-        message: 'Reporte enviado. Nuestro equipo lo revisará lo antes posible.',
-      );
-    }
-    if (saved) {
-      return ReportSubmission(
-        saved: true,
-        notified: false,
-        reportId: reportId,
-        message: 'Reporte registrado. Te responderemos por correo.',
+        message:
+            'Reporte enviado. Nuestro equipo lo revisará lo antes posible.',
       );
     }
     return const ReportSubmission(
       saved: false,
-      notified: false,
       message: 'No pudimos guardar el reporte. Revisa tu conexión e inténtalo de nuevo.',
     );
   }
@@ -126,26 +109,6 @@ class ReportRepository {
       return response['id'] as String?;
     } catch (_) {
       return null;
-    }
-  }
-
-  Future<bool> _notifySavedReport(String reportId) async {
-    if (_reportNotifier != null) return _reportNotifier(reportId);
-    final client = SupabaseService.client;
-    if (client == null) return false;
-
-    try {
-      final response = await client.functions.invoke(
-        'notify-report',
-        body: {'id': reportId},
-      );
-      final data = response.data;
-      return response.status == 200 &&
-          data is Map &&
-          data['ok'] == true &&
-          (data['enviado'] == true || data['encolado'] == true);
-    } catch (_) {
-      return false;
     }
   }
 }

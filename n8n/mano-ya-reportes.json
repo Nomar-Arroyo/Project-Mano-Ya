@@ -17,7 +17,7 @@
         0
       ],
       "webhookId": "a1000000-0000-4000-8000-0000000000a1",
-      "notes": "Punto de entrada para el trigger reports_notify_n8n de Supabase. Flutter llama a notify-report con su sesion, no a este webhook. URL final: https://<TU-N8N>/webhook/reportes"
+      "notes": "Punto de entrada para el trigger reports_notify_n8n de Supabase. La app Flutter solo inserta en public.reports; no llama a este webhook ni a notify-report. URL final: https://<TU-N8N>/webhook/reportes"
     },
     {
       "parameters": {

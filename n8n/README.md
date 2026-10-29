@@ -19,24 +19,23 @@ Además hay un workflow diario que ejecuta la retención de datos de la base.
 ## 1. Como funciona el flujo completo
 
 ```
-App Flutter ──sesion──> Edge Function notify-report
-                                                          │
-                                                          └──> Resend ──> correo a soporte
-
+App Flutter ──insert──> public.reports
+                              │
 Trigger reports_notify_n8n (pg_net) ──POST──> n8n /webhook/reportes
                                                    └──> Edge Function notify-report
+                                                              └──> Resend ──> correo a soporte
 ```
 
-- **La app** guarda el reporte en `public.reports` y llama a la Edge Function
-  `notify-report` con su sesión autenticada. No lleva URL ni secreto de n8n.
+- **La app** solo guarda el reporte en `public.reports`. No llama a n8n ni a la
+  Edge Function: no lleva URL ni secreto de n8n.
 - **El trigger de la base de datos** (`reports_notify_n8n`, definido en
   `supabase/migrations/20240101000200_reportes_y_automatizacion.sql`) encola
-  un POST a n8n usando `pg_net` al insertar la fila.
+  un POST a n8n usando `pg_net` al insertar la fila. Es la única vía de aviso,
+  así que el reporte se guarda aunque n8n esté caído.
 - `notified_at` indica que el POST quedó encolado; no garantiza que n8n lo
   procesó ni que Resend entregó el correo.
-- La Edge Function reconoce la fila encolada cuando Flutter la notifica y no
-  envía un segundo correo. n8n llama a la misma función con el secreto
-  compartido configurado solo en servidores.
+- n8n llama a la Edge Function `notify-report` con el secreto compartido
+  configurado solo en servidores.
 
 ---
 
@@ -341,8 +340,8 @@ deben agregarse al `.env` que usa el cliente.
 .\tool\run_flutter_with_env.ps1 build web --release
 ```
 
-La app móvil y la web usan la sesión Supabase para llamar a `notify-report`.
-El trigger de base de datos usa el secreto guardado en
+La app móvil y la web no llaman a `notify-report`: solo insertan en
+`public.reports`. El trigger de base de datos usa el secreto guardado en
 `app_settings.n8n_webhook_secret` para autenticar el webhook de n8n; n8n usa
 ese secreto al llamar a la Edge Function. **Nunca compiles
 `N8N_WEBHOOK_SECRET` en APK, JavaScript ni otro artefacto del cliente.** Si

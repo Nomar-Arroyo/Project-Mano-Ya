@@ -61,7 +61,7 @@ class ReportController extends Notifier<ReportSubmissionState> {
     );
     state = ReportSubmissionState(
       loading: false,
-      success: result.saved || result.notified,
+      success: result.saved,
       message: result.message,
     );
     if (result.saved) {
