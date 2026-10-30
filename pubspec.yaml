@@ -84,7 +84,6 @@ flutter:
   # Recursos graficos oficiales de Mano Ya (logotipo transparente, etc.).
   assets:
     - assets/icons/
-    - assets/legal/terms_and_conditions.txt
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

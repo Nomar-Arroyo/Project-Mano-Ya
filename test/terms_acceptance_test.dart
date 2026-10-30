@@ -26,12 +26,37 @@ void main() {
 
     await tester.ensureVisible(find.text('Términos y condiciones'));
     await tester.tap(find.text('Términos y condiciones'));
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpAndSettle();
     expect(find.text('Términos y condiciones'), findsOneWidget);
     expect(
       find.textContaining('INSTRUMENTO JURÍDICO VINCULANTE'),
       findsOneWidget,
     );
+    expect(
+      find.text('NATURALEZA CIVIL DEL VÍNCULO Y PRIMACÍA DE LA REALIDAD'),
+      findsOneWidget,
+    );
+    await tester.scrollUntilVisible(
+      find.text('CÓDIGO DE CONDUCTA Y RÉGIMEN SANCIONATORIO'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(
+      find.text('CÓDIGO DE CONDUCTA Y RÉGIMEN SANCIONATORIO'),
+      findsOneWidget,
+    );
+    expect(find.text('FUNDAMENTO LEGAL'), findsNWidgets(5));
+    await tester.scrollUntilVisible(
+      find.text('Arts. 1.167 y 1.630 del Código Civil'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('FUNDAMENTO LEGAL'), findsNWidgets(5));
+    expect(find.text('Arts. 1.167 y 1.630 del Código Civil'), findsOneWidget);
 
     router.dispose();
   });
