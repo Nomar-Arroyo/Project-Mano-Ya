@@ -17,15 +17,25 @@ import '../widgets/charge_status_chip.dart';
 
 /// Lista de solicitudes de cobro/pagos. El trabajador puede crear nuevas;
 /// ambos roles pueden abrir el detalle para notificar o confirmar el pago.
-class ChargesListPage extends ConsumerWidget {
+class ChargesListPage extends ConsumerStatefulWidget {
   const ChargesListPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (PaymentsDemoConfig.enabled) return const PaymentsDemoListPage();
+  ConsumerState<ChargesListPage> createState() => _ChargesListPageState();
+}
 
-    final chargesAsync = ref.watch(chargesListProvider);
+enum _WorkerChargeFilter { inProgress, unpaid, notified, received }
+
+class _ChargesListPageState extends ConsumerState<ChargesListPage> {
+  _WorkerChargeFilter _workerFilter = _WorkerChargeFilter.inProgress;
+
+  @override
+  Widget build(BuildContext context) {
     final isWorker = ref.watch(authStateProvider).role == UserRole.worker;
+    if (PaymentsDemoConfig.enabled && !isWorker) {
+      return const PaymentsDemoListPage();
+    }
+    final chargesAsync = ref.watch(chargesListProvider);
 
     return Scaffold(
       appBar: AppBar(title: Text(isWorker ? 'Cobros' : 'Mis pagos')),
@@ -55,6 +65,8 @@ class ChargesListPage extends ConsumerWidget {
                   : 'Cuando te generen un cobro aparecerá aquí.',
             );
           }
+          if (isWorker) return _workerContent(context, ref, list);
+
           final total = list.fold<double>(0, (sum, c) => sum + c.total);
           final pending = list.fold<double>(
             0,
@@ -104,7 +116,7 @@ class ChargesListPage extends ConsumerWidget {
                   separatorBuilder: (context, index) =>
                       const SizedBox(height: AppSpacing.md),
                   itemBuilder: (context, index) =>
-                      _ChargeCard(charge: list[index]),
+                      _ChargeCard(charge: list[index], isWorker: false),
                 ),
               ),
             ],
@@ -113,6 +125,149 @@ class ChargesListPage extends ConsumerWidget {
       ),
     );
   }
+
+  Widget _workerContent(
+    BuildContext context,
+    WidgetRef ref,
+    List<Charge> charges,
+  ) {
+    final received = charges.fold<double>(
+      0,
+      (sum, charge) => sum + charge.paidAmount,
+    );
+    final pending = charges
+        .where((charge) => charge.status != ChargeStatus.paid)
+        .fold<double>(0, (sum, charge) => sum + charge.pendingAmount);
+    final filteredCharges = charges.where(_matchesWorkerFilter).toList();
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            AppSpacing.md,
+            AppSpacing.md,
+            AppSpacing.sm,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: _SummaryCard(
+                  label: 'Recibido',
+                  value: Formatters.currency(received),
+                  icon: Icons.account_balance_wallet_outlined,
+                  color: ManoYaColors.success,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: _SummaryCard(
+                  label: 'Por recibir',
+                  value: Formatters.currency(pending),
+                  icon: Icons.hourglass_bottom,
+                  color: ManoYaColors.warning,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (PaymentsDemoConfig.enabled)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              AppSpacing.xs,
+              AppSpacing.md,
+              AppSpacing.sm,
+            ),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              decoration: BoxDecoration(
+                color: ManoYaColors.warning.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(
+                  color: ManoYaColors.warning.withValues(alpha: 0.4),
+                ),
+              ),
+              child: const Text(
+                'DEMO · Solicitudes y datos ficticios. No se mueve dinero.',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.xs,
+              children: [
+                for (final filter in _WorkerChargeFilter.values)
+                  ChoiceChip(
+                    label: Text(
+                      '${filter.label} (${charges.where(filter.matches).length})',
+                    ),
+                    selected: _workerFilter == filter,
+                    onSelected: (_) => setState(() => _workerFilter = filter),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        Expanded(
+          child: filteredCharges.isEmpty
+              ? EmptyView(
+                  icon: Icons.receipt_long_outlined,
+                  title: 'Sin ${_workerFilter.label.toLowerCase()}',
+                  message: _workerFilter.emptyMessage,
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md,
+                    AppSpacing.md,
+                    AppSpacing.md,
+                    AppSpacing.xxl,
+                  ),
+                  itemCount: filteredCharges.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: AppSpacing.md),
+                  itemBuilder: (context, index) => _ChargeCard(
+                    charge: filteredCharges[index],
+                    isWorker: true,
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+
+  bool _matchesWorkerFilter(Charge charge) => _workerFilter.matches(charge);
+}
+
+extension on _WorkerChargeFilter {
+  String get label => switch (this) {
+    _WorkerChargeFilter.inProgress => 'Trabajos en curso',
+    _WorkerChargeFilter.unpaid => 'Clientes por pagar',
+    _WorkerChargeFilter.notified => 'Pagos notificados',
+    _WorkerChargeFilter.received => 'Pagos recibidos',
+  };
+
+  String get emptyMessage => switch (this) {
+    _WorkerChargeFilter.inProgress => 'No tienes trabajos en curso.',
+    _WorkerChargeFilter.unpaid => 'No hay clientes con pagos pendientes.',
+    _WorkerChargeFilter.notified =>
+      'No tienes pagos notificados por confirmar.',
+    _WorkerChargeFilter.received => 'Aún no tienes pagos confirmados.',
+  };
+
+  bool matches(Charge charge) => switch (this) {
+    _WorkerChargeFilter.inProgress => charge.status != ChargeStatus.paid,
+    _WorkerChargeFilter.unpaid => charge.status == ChargeStatus.pending,
+    _WorkerChargeFilter.notified =>
+      charge.status == ChargeStatus.clientNotified,
+    _WorkerChargeFilter.received => charge.status == ChargeStatus.paid,
+  };
 }
 
 /// Tarjeta de resumen (total / por pagar).
@@ -168,8 +323,9 @@ class _SummaryCard extends StatelessWidget {
 /// Tarjeta resumen de una solicitud de cobro.
 class _ChargeCard extends StatelessWidget {
   final Charge charge;
+  final bool isWorker;
 
-  const _ChargeCard({required this.charge});
+  const _ChargeCard({required this.charge, required this.isWorker});
 
   @override
   Widget build(BuildContext context) {
@@ -216,7 +372,8 @@ class _ChargeCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Cliente: ${charge.clientName}',
+                          '${isWorker ? 'Cliente' : 'Trabajador'}: '
+                          '${isWorker ? charge.clientName : charge.workerName}',
                           style: const TextStyle(
                             fontSize: 12,
                             color: ManoYaColors.muted,
@@ -230,8 +387,10 @@ class _ChargeCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: AppSpacing.md),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.xs,
                 children: [
                   Text(
                     Formatters.currency(charge.total),
@@ -240,25 +399,29 @@ class _ChargeCard extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(width: AppSpacing.sm),
                   Text(
-                    'Pagado: ${Formatters.currency(charge.paidAmount)}',
+                    isWorker
+                        ? 'Recibido: ${Formatters.currency(charge.paidAmount)}'
+                        : 'Pagado: ${Formatters.currency(charge.paidAmount)}',
                     style: const TextStyle(
                       fontSize: 12,
                       color: ManoYaColors.success,
                     ),
                   ),
-                  const Spacer(),
-                  if (charge.hasInstallments)
-                    Text(
-                      '${charge.installments.length} cuotas',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: ManoYaColors.muted,
-                      ),
-                    ),
                 ],
               ),
+              if (charge.installments.length > 1) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Abonos: ${charge.installments.where((item) => item.paid).length} '
+                  'de ${charge.installments.length} cuotas · '
+                  'Por recibir: ${Formatters.currency(charge.pendingAmount)}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: ManoYaColors.muted,
+                  ),
+                ),
+              ],
               const SizedBox(height: AppSpacing.sm),
               ClipRRect(
                 borderRadius: BorderRadius.circular(AppRadius.pill),

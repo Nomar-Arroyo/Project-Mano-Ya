@@ -201,6 +201,27 @@ class BillingRepository {
           ),
         ],
       ),
+      Charge(
+        id: 'demo0003',
+        concept: 'Pintura y acabado de sala',
+        workerName: 'Luis Pérez',
+        clientName: 'Gabriela Torres',
+        clientEmail: 'gabriela.torres@example.com',
+        total: 240,
+        bankInfo: 'Pago móvil: 0412-5556677',
+        createdAt: now.subtract(const Duration(days: 8)),
+        status: ChargeStatus.paid,
+        installments: [
+          Installment(
+            id: 'cuota-1',
+            label: 'Pago único',
+            amount: 240,
+            dueDate: now.subtract(const Duration(days: 8)),
+            paid: true,
+          ),
+        ],
+        paidAt: now.subtract(const Duration(days: 6)),
+      ),
     ];
   }
 }
