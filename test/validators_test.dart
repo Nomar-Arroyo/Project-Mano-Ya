@@ -24,4 +24,19 @@ void main() {
       expect(Validators.phone(''), 'Ingresa tu teléfono');
     });
   });
+
+  group('Validators.emailCode', () {
+    test('acepta códigos de 6 a 10 dígitos', () {
+      expect(Validators.emailCode('123456'), isNull);
+      expect(Validators.emailCode('12345678'), isNull);
+      expect(Validators.emailCode('0123456789'), isNull);
+    });
+
+    test('rechaza códigos cortos, largos o con letras', () {
+      expect(Validators.emailCode(''), 'Ingresa el código');
+      expect(Validators.emailCode('12345'), isNotNull);
+      expect(Validators.emailCode('12345678901'), isNotNull);
+      expect(Validators.emailCode('12a45678'), isNotNull);
+    });
+  });
 }

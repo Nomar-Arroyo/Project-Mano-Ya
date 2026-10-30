@@ -33,6 +33,19 @@ class Validators {
     return null;
   }
 
+  /// Código numérico que Supabase envía por correo.
+  ///
+  /// La longitud la define el panel de Supabase (por defecto 8), así que se
+  /// acepta cualquier valor entre 6 y 10 dígitos en vez de exigir seis.
+  static String? emailCode(String? value) {
+    final code = value?.trim() ?? '';
+    if (code.isEmpty) return 'Ingresa el código';
+    if (!RegExp(r'^\d{6,10}$').hasMatch(code)) {
+      return 'El código debe tener entre 6 y 10 dígitos';
+    }
+    return null;
+  }
+
   /// Nombre completo (al menos dos palabras).
   static String? fullName(String? value) {
     if (value == null || value.trim().isEmpty) return 'Ingresa tu nombre';

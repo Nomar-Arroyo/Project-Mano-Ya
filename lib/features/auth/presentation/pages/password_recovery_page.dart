@@ -138,7 +138,7 @@ class _PasswordRecoveryPageState extends ConsumerState<PasswordRecoveryPage> {
       ),
       PasswordRecoveryStep.code => (
         'Revisa tu correo',
-        'Enviamos un código de 6 dígitos a ${state.email}. Escríbelo para '
+        'Enviamos un código a ${state.email}. Escríbelo para '
             'continuar. Si no llega, revisa la carpeta de spam.',
       ),
       PasswordRecoveryStep.password => (
@@ -247,7 +247,7 @@ class _PasswordRecoveryPageState extends ConsumerState<PasswordRecoveryPage> {
           TextFormField(
             controller: _codeCtrl,
             keyboardType: TextInputType.number,
-            maxLength: 6,
+            maxLength: 10,
             textAlign: TextAlign.center,
             enabled: !state.loading,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -256,11 +256,7 @@ class _PasswordRecoveryPageState extends ConsumerState<PasswordRecoveryPage> {
               border: OutlineInputBorder(),
               counterText: '',
             ),
-            validator: (value) {
-              final code = value?.trim() ?? '';
-              if (code.length != 6) return 'El código debe tener 6 dígitos';
-              return null;
-            },
+            validator: Validators.emailCode,
             onFieldSubmitted: (_) =>
                 _submit(ref.read(passwordRecoveryProvider.notifier), state),
             onChanged: (_) =>

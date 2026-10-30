@@ -213,7 +213,7 @@ class AuthNotifier extends Notifier<AuthState> {
 }
 
 /// Flujo de recuperación de contraseña en tres pasos:
-/// correo, código de 6 dígitos y contraseña nueva.
+/// correo, código numérico y contraseña nueva.
 final passwordRecoveryProvider =
     NotifierProvider<PasswordRecoveryNotifier, PasswordRecoveryState>(
       PasswordRecoveryNotifier.new,

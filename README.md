@@ -191,7 +191,7 @@ Google.
 ### Recuperación de contraseña
 
 El botón **¿Olvidaste tu contraseña?** del inicio de sesión abre un flujo de
-tres pasos: correo, código de 6 dígitos y contraseña nueva. Usa el mismo SMTP
+tres pasos: correo, código numérico y contraseña nueva. Usa el mismo SMTP
 configurado en Supabase Auth y no depende de que la persona recuerde la
 contraseña anterior.
 

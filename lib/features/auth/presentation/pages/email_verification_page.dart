@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/colors.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/utils/validators.dart';
 import '../../../shared/widgets/async_state_views.dart';
 import '../../domain/auth_state.dart';
 import '../auth_provider.dart';
@@ -19,8 +20,7 @@ class EmailVerificationPage extends ConsumerStatefulWidget {
       _EmailVerificationPageState();
 }
 
-class _EmailVerificationPageState
-    extends ConsumerState<EmailVerificationPage> {
+class _EmailVerificationPageState extends ConsumerState<EmailVerificationPage> {
   final _formKey = GlobalKey<FormState>();
   final _codeController = TextEditingController();
 
@@ -81,23 +81,15 @@ class _EmailVerificationPageState
                     TextFormField(
                       controller: _codeController,
                       keyboardType: TextInputType.number,
-                      maxLength: 6,
+                      maxLength: 10,
                       textAlign: TextAlign.center,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                      ],
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       decoration: const InputDecoration(
                         labelText: 'Código de verificación',
                         border: OutlineInputBorder(),
                         counterText: '',
                       ),
-                      validator: (value) {
-                        final code = value?.trim() ?? '';
-                        if (code.length != 6) {
-                          return 'El código debe tener 6 dígitos';
-                        }
-                        return null;
-                      },
+                      validator: Validators.emailCode,
                     ),
                     if (state.errorMessage != null) ...[
                       const SizedBox(height: AppSpacing.md),
@@ -131,9 +123,7 @@ class _EmailVerificationPageState
                           ? const SizedBox(
                               height: 20,
                               width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                              ),
+                              child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Text('Verificar y continuar'),
                     ),
