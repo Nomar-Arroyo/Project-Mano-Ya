@@ -8,6 +8,7 @@ import '../../features/auth/presentation/pages/register_page.dart';
 import '../../features/auth/presentation/pages/terms_and_conditions_page.dart';
 import '../../features/auth/presentation/pages/two_factor_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
+import '../../features/legal/presentation/pages/cookie_policy_page.dart';
 import '../../features/profile/presentation/pages/favorites_page.dart';
 import '../../features/profile/presentation/pages/profile_edit_page.dart';
 import '../../features/profile/presentation/pages/saved_addresses_page.dart';
@@ -31,6 +32,7 @@ class AppRouter {
         path: '/terms',
         builder: (_, _) => const TermsAndConditionsPage(),
       ),
+      GoRoute(path: '/cookies', builder: (_, _) => const CookiePolicyPage()),
       GoRoute(
         path: '/verify-email',
         builder: (_, state) =>

@@ -2,12 +2,84 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mano_ya/core/constants/colors.dart';
 import 'package:mano_ya/features/auth/presentation/pages/login_page.dart';
 import 'package:mano_ya/features/auth/presentation/pages/register_page.dart';
 import 'package:mano_ya/features/auth/presentation/pages/terms_and_conditions_page.dart';
+import 'package:mano_ya/features/legal/presentation/pages/cookie_policy_page.dart';
+import 'package:mano_ya/features/legal/presentation/widgets/cookie_notice.dart';
 
 void main() {
+  testWidgets('cookie notice is disabled outside the web surface', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CookieNotice(
+          enabled: false,
+          child: const Text('Aplicación'),
+          onOpenPolicy: () {},
+        ),
+      ),
+    );
+
+    expect(find.text('Aplicación'), findsOneWidget);
+    expect(find.text('Uso de cookies y almacenamiento'), findsNothing);
+  });
+
+  testWidgets('web cookie notice links to policy and saves acknowledgement', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final router = _authRouter(register: false);
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp.router(
+          routerConfig: router,
+          builder: (context, child) => CookieNotice(
+            enabled: true,
+            child: child ?? const SizedBox.shrink(),
+            onOpenPolicy: () => router.push('/cookies'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Uso de cookies y almacenamiento'), findsOneWidget);
+    await tester.tap(find.text('Política de cookies'));
+    await tester.pumpAndSettle();
+    expect(find.byType(CookiePolicyPage), findsOneWidget);
+    expect(find.text('1. Tecnologías esenciales'), findsOneWidget);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cookies'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Entendido'));
+    await tester.pumpAndSettle();
+    expect(find.text('Uso de cookies y almacenamiento'), findsNothing);
+    expect(find.text('Cookies'), findsOneWidget);
+    final preferences = await SharedPreferences.getInstance();
+    expect(preferences.getBool('cookie_notice_acknowledged_v1'), isTrue);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CookieNotice(
+          enabled: true,
+          child: const Scaffold(),
+          onOpenPolicy: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Uso de cookies y almacenamiento'), findsNothing);
+    expect(find.text('Cookies'), findsOneWidget);
+
+    router.dispose();
+  });
+
   testWidgets('agreement remains readable with the dark app theme', (
     tester,
   ) async {
@@ -123,6 +195,7 @@ GoRouter _authRouter({required bool register}) {
         path: '/terms',
         builder: (_, _) => const TermsAndConditionsPage(),
       ),
+      GoRoute(path: '/cookies', builder: (_, _) => const CookiePolicyPage()),
       GoRoute(path: '/forgot-password', builder: (_, _) => const Scaffold()),
       GoRoute(path: '/verify-email', builder: (_, _) => const Scaffold()),
       GoRoute(path: '/home', builder: (_, _) => const Scaffold()),

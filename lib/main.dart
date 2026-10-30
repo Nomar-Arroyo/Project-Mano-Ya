@@ -9,6 +9,7 @@ import 'core/services/storage_service.dart';
 import 'core/services/supabase_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_provider.dart';
+import 'features/legal/presentation/widgets/cookie_notice.dart';
 import 'features/auth/data/auth_repository.dart';
 import 'features/auth/domain/auth_state.dart';
 import 'features/auth/domain/terms_policy.dart';
@@ -68,6 +69,10 @@ class MyApp extends ConsumerWidget {
       darkTheme: AppTheme.dark(),
       themeMode: themeMode,
       routerConfig: AppRouter.router,
+      builder: (context, child) => CookieNotice(
+        child: child ?? const SizedBox.shrink(),
+        onOpenPolicy: () => AppRouter.router.push('/cookies'),
+      ),
     );
   }
 }
