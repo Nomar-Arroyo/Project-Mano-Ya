@@ -119,7 +119,10 @@ class TermsAndConditionsPage extends StatelessWidget {
                     ),
                     const Text(
                       'Régimen disciplinario y tipificación de infracciones aplicable con efecto inmediato a usuarios clientes y prestadores dentro de la plataforma:',
-                      style: TextStyle(height: 1.55),
+                      style: TextStyle(
+                        color: ManoYaColors.textSecondary,
+                        height: 1.55,
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.md),
                     _InfractionTable(
@@ -133,7 +136,10 @@ class TermsAndConditionsPage extends StatelessWidget {
                     ),
                     const Text(
                       'En estricto cumplimiento de la Ley Especial contra los Delitos Informáticos, la plataforma implementa autenticación robusta mediante tokens criptográficos JWT y políticas de aislamiento de datos Row Level Security (RLS) a nivel de base de datos PostgreSQL. En virtud de ello, ningún usuario registrado podrá desconocer válidamente compromisos, cotizaciones o transacciones ejecutadas bajo sus credenciales autenticadas.',
-                      style: TextStyle(height: 1.55),
+                      style: TextStyle(
+                        color: ManoYaColors.textSecondary,
+                        height: 1.55,
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.lg),
                     const _SectionHeading(
@@ -142,7 +148,10 @@ class TermsAndConditionsPage extends StatelessWidget {
                     ),
                     const Text(
                       'Para dirimir cualquier controversia derivada de la ejecución del servicio o la verificación de pagos, las Partes convienen someterse preferentemente a la mediación del equipo de soporte de Mano Ya. En caso de no alcanzarse un acuerdo satisfactorio, las Partes se someten expresamente a la jurisdicción de los tribunales civiles y mercantiles competentes correspondientes al domicilio donde se ejecutó fácticamente la labor dentro del territorio de la República Bolivariana de Venezuela.',
-                      style: TextStyle(height: 1.55),
+                      style: TextStyle(
+                        color: ManoYaColors.textSecondary,
+                        height: 1.55,
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.xl),
                     const _PageFooter(page: 2),
@@ -170,7 +179,7 @@ class _DocumentPage extends StatelessWidget {
         constraints: const BoxConstraints(maxWidth: 1000),
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
+            color: ManoYaColors.surface,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: ManoYaColors.border),
             boxShadow: [
@@ -441,6 +450,7 @@ class _InfractionTable extends StatelessWidget {
             dataRowMinHeight: 76,
             dataRowMaxHeight: 132,
             columnSpacing: AppSpacing.md,
+            dataTextStyle: const TextStyle(color: ManoYaColors.textPrimary),
             columns: [
               for (final header in _infractionHeaders)
                 DataColumn(
@@ -477,7 +487,10 @@ class _InfractionTable extends StatelessWidget {
   DataCell _dataCell(String value) => DataCell(
     SizedBox(
       width: 190,
-      child: Text(value, style: const TextStyle(height: 1.35)),
+      child: Text(
+        value,
+        style: const TextStyle(color: ManoYaColors.textPrimary, height: 1.35),
+      ),
     ),
   );
 }
@@ -500,7 +513,7 @@ class _InfractionCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: ManoYaColors.surface,
         border: Border.all(color: ManoYaColors.border),
         borderRadius: BorderRadius.circular(8),
       ),
@@ -552,7 +565,10 @@ class _InfractionCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       values[index],
-                      style: const TextStyle(height: 1.35),
+                      style: const TextStyle(
+                        color: ManoYaColors.textPrimary,
+                        height: 1.35,
+                      ),
                     ),
                   ),
                 ],
