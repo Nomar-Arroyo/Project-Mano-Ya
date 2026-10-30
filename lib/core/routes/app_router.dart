@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/assistant/presentation/pages/recommend_workers_page.dart';
 import '../../features/auth/presentation/pages/email_verification_page.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
+import '../../features/auth/presentation/pages/password_recovery_page.dart';
 import '../../features/auth/presentation/pages/register_page.dart';
 import '../../features/auth/presentation/pages/two_factor_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
@@ -31,6 +32,11 @@ class AppRouter {
             EmailVerificationPage(email: state.extra as String),
       ),
       GoRoute(path: '/two-factor', builder: (_, _) => const TwoFactorPage()),
+      GoRoute(
+        path: '/forgot-password',
+        builder: (_, state) =>
+            PasswordRecoveryPage(initialEmail: state.extra as String?),
+      ),
       GoRoute(path: '/home', builder: (_, _) => const HomePage()),
       GoRoute(
         path: '/assistant',

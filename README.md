@@ -188,6 +188,22 @@ la configuración debe corregirse. En modo mock no se crean cuentas ni se envía
 correos. El inicio de sesión con Google usa la verificación gestionada por
 Google.
 
+### Recuperación de contraseña
+
+El botón **¿Olvidaste tu contraseña?** del inicio de sesión abre un flujo de
+tres pasos: correo, código de 6 dígitos y contraseña nueva. Usa el mismo SMTP
+configurado en Supabase Auth y no depende de que la persona recuerde la
+contraseña anterior.
+
+Para que el correo incluya el código, en el proyecto remoto entra a
+**Authentication > Emails > Reset Password** y reemplaza la plantilla por el
+contenido de `supabase/templates/recovery.html`, que muestra `{{ .Token }}`.
+La plantilla por defecto solo trae un enlace; como la app pide el código, sin
+este cambio la pantalla del código no tendría qué aceptar. El asunto sugerido es
+*Recupera tu contraseña en Mano Ya*.
+
+El flujo completo también está en `supabase/config.toml` para Supabase local.
+
 #### SMTP propio (obligatorio para producción)
 
 El SMTP integrado de Supabase solo entrega unos pocos correos por hora y, en

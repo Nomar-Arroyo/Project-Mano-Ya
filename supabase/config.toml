@@ -28,6 +28,10 @@ enable_confirmations = true
 subject = "Código de verificación de Mano Ya"
 content_path = "./supabase/templates/confirmation.html"
 
+[auth.email.template.recovery]
+subject = "Recupera tu contraseña en Mano Ya"
+content_path = "./supabase/templates/recovery.html"
+
 # ----------------------------------------------------------------------
 # Edge Function que envia los reportes por correo (Resend).
 #

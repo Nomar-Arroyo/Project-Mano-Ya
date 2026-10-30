@@ -6,6 +6,7 @@ import '../../workers/data/worker_registration_service.dart';
 import '../data/auth_repository.dart';
 import '../domain/auth_state.dart';
 import '../domain/mfa_enrollment.dart';
+import '../domain/password_recovery_state.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>(
   (ref) => AuthRepository(),
@@ -208,5 +209,148 @@ class AuthNotifier extends Notifier<AuthState> {
     await repo.logout();
     await StorageService.clearSession();
     state = const AuthState.unauthenticated();
+  }
+}
+
+/// Flujo de recuperación de contraseña en tres pasos:
+/// correo, código de 6 dígitos y contraseña nueva.
+final passwordRecoveryProvider =
+    NotifierProvider<PasswordRecoveryNotifier, PasswordRecoveryState>(
+      PasswordRecoveryNotifier.new,
+    );
+
+class PasswordRecoveryNotifier extends Notifier<PasswordRecoveryState> {
+  AuthRepository get repo => ref.read(authRepositoryProvider);
+
+  @override
+  PasswordRecoveryState build() => const PasswordRecoveryState.initial();
+
+  /// Deja el flujo como nuevo cada vez que se abre la pantalla.
+  void reset() {
+    state = const PasswordRecoveryState.initial();
+  }
+
+  void clearError() {
+    if (state.errorMessage != null) {
+      state = state.copyWith(clearError: true);
+    }
+  }
+
+  /// Paso 1: pide el código de recuperación para el correo indicado.
+  Future<bool> requestCode(String email) async {
+    final trimmed = email.trim();
+    state = state.copyWith(loading: true, clearError: true);
+    try {
+      await repo.requestPasswordReset(trimmed);
+      state = PasswordRecoveryState(
+        step: PasswordRecoveryStep.code,
+        email: trimmed,
+      );
+      return true;
+    } on AuthException catch (e) {
+      state = state.copyWith(loading: false, errorMessage: e.message);
+      return false;
+    } catch (_) {
+      state = state.copyWith(
+        loading: false,
+        errorMessage: 'No se pudo enviar el código. Intenta de nuevo.',
+      );
+      return false;
+    }
+  }
+
+  /// Reenvía el código al mismo correo sin salir del paso del código.
+  Future<bool> resendCode() async {
+    if (state.email.isEmpty) return false;
+    state = state.copyWith(loading: true, clearError: true);
+    try {
+      await repo.requestPasswordReset(state.email);
+      state = state.copyWith(loading: false, clearError: true);
+      return true;
+    } on AuthException catch (e) {
+      state = state.copyWith(loading: false, errorMessage: e.message);
+      return false;
+    } catch (_) {
+      state = state.copyWith(
+        loading: false,
+        errorMessage: 'No se pudo reenviar el código. Intenta de nuevo.',
+      );
+      return false;
+    }
+  }
+
+  /// Paso 2: comprueba el código y abre la sesión temporal.
+  Future<bool> verifyCode(String code) async {
+    state = state.copyWith(loading: true, clearError: true);
+    try {
+      await repo.verifyPasswordResetCode(email: state.email, code: code);
+      state = state.copyWith(
+        step: PasswordRecoveryStep.password,
+        loading: false,
+        clearError: true,
+      );
+      return true;
+    } on AuthException catch (e) {
+      state = state.copyWith(loading: false, errorMessage: e.message);
+      return false;
+    } catch (_) {
+      state = state.copyWith(
+        loading: false,
+        errorMessage: 'No se pudo verificar el código. Intenta de nuevo.',
+      );
+      return false;
+    }
+  }
+
+  /// Paso 3: guarda la contraseña nueva y cierra la sesión temporal.
+  Future<bool> updatePassword(String password) async {
+    state = state.copyWith(loading: true, clearError: true);
+    try {
+      await repo.updatePassword(password);
+      state = state.copyWith(loading: false, clearError: true);
+      return true;
+    } on AuthException catch (e) {
+      state = state.copyWith(loading: false, errorMessage: e.message);
+      return false;
+    } catch (_) {
+      state = state.copyWith(
+        loading: false,
+        errorMessage: 'No se pudo cambiar la contraseña. Intenta de nuevo.',
+      );
+      return false;
+    }
+  }
+
+  /// Vuelve al paso anterior sin cerrar el flujo.
+  void backToEmail() {
+    state = state.copyWith(
+      step: PasswordRecoveryStep.email,
+      email: '',
+      loading: false,
+      clearError: true,
+    );
+  }
+
+  void backToCode() {
+    state = state.copyWith(
+      step: PasswordRecoveryStep.code,
+      loading: false,
+      clearError: true,
+    );
+  }
+
+  /// Abandona el flujo y cierra la sesión temporal si ya se había verificado
+  /// el código, para no quedar con una sesión abierta a medias.
+  Future<void> cancel() async {
+    final hadSession = state.step == PasswordRecoveryStep.password;
+    reset();
+    if (hadSession) {
+      try {
+        await repo.cancelPasswordReset();
+      } catch (_) {
+        // Si falla el cierre de sesión no se bloquea la salida: la próxima
+        // entrada con contraseña reemplaza la sesión de todos modos.
+      }
+    }
   }
 }

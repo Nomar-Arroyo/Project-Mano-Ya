@@ -208,6 +208,108 @@ class AuthRepository {
     }
   }
 
+  /// Envía un código de recuperación de contraseña al correo indicado.
+  ///
+  /// Supabase responde con éxito aunque el correo no tenga cuenta (medida
+  /// anti-enumeración) y en ese caso no envía nada, así que la app muestra
+  /// siempre el mismo mensaje para no revelar qué correos están registrados.
+  Future<void> requestPasswordReset(String email) async {
+    final client = SupabaseService.client;
+    if (client == null) {
+      throw const AuthException(
+        'Supabase no está configurado; no se pueden enviar códigos.',
+      );
+    }
+    try {
+      await client.auth.resetPasswordForEmail(email.trim());
+    } on supabase.AuthException catch (error) {
+      throw _emailDeliveryError(error);
+    }
+  }
+
+  /// Verifica el código de recuperación y abre la sesión temporal.
+  ///
+  /// Esa sesión solo sirve para guardar la contraseña nueva: la app no la usa
+  /// para entrar directamente, y [updatePassword] la cierra al terminar.
+  Future<void> verifyPasswordResetCode({
+    required String email,
+    required String code,
+  }) async {
+    final client = SupabaseService.client;
+    if (client == null) {
+      throw const AuthException(
+        'Supabase no está configurado; no se pueden verificar códigos.',
+      );
+    }
+    try {
+      final response = await client.auth.verifyOTP(
+        email: email.trim(),
+        token: code.trim(),
+        type: supabase.OtpType.recovery,
+      );
+      if (response.session == null) {
+        throw const AuthException(
+          'El código no es válido o ya venció. Solicita uno nuevo.',
+        );
+      }
+    } on supabase.AuthException catch (error) {
+      final errorCode = error.code ?? '';
+      final message = error.message.toLowerCase();
+      if (errorCode == 'otp_expired' || message.contains('expired')) {
+        throw const AuthException(
+          'El código venció. Pide uno nuevo e inténtalo otra vez.',
+        );
+      }
+      if (errorCode == 'otp_disabled' || message.contains('invalid')) {
+        throw const AuthException(
+          'El código no es correcto. Revísalo e inténtalo de nuevo.',
+        );
+      }
+      throw _emailDeliveryError(error);
+    }
+  }
+
+  /// Guarda la contraseña nueva usando la sesión del código de recuperación.
+  Future<void> updatePassword(String password) async {
+    final client = SupabaseService.client;
+    if (client == null) {
+      throw const AuthException(
+        'Supabase no está configurado; no se puede cambiar la contraseña.',
+      );
+    }
+    try {
+      await client.auth.updateUser(supabase.UserAttributes(password: password));
+      // La sesión abierta por el código solo sirve para este cambio: se
+      // cierra para que la persona entre con la contraseña nueva.
+      await client.auth.signOut();
+    } on supabase.AuthException catch (error) {
+      final errorCode = error.code ?? '';
+      final message = error.message.toLowerCase();
+      if (errorCode == 'same_password' || message.contains('same password')) {
+        throw const AuthException(
+          'La contraseña nueva debe ser diferente a la anterior.',
+        );
+      }
+      if (errorCode == 'weak_password' || message.contains('weak')) {
+        throw const AuthException(
+          'La contraseña es demasiado débil. Usa al menos 6 caracteres.',
+        );
+      }
+      throw _emailDeliveryError(error);
+    }
+  }
+
+  /// Cierra la sesión temporal que dejó el código de recuperación.
+  ///
+  /// Solo se usa cuando la persona abandona el flujo después de verificar el
+  /// código y antes de guardar la contraseña nueva.
+  Future<void> cancelPasswordReset() async {
+    final client = SupabaseService.client;
+    if (client != null && client.auth.currentSession != null) {
+      await client.auth.signOut();
+    }
+  }
+
   /// Traduce los errores de envío de correo de Supabase a un mensaje útil.
   ///
   /// El SMTP integrado de Supabase limita los envíos por hora. Cuando se

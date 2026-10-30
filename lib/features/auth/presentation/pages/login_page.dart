@@ -121,12 +121,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               child: TextButton(
                 onPressed: loading
                     ? null
-                    : () => ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Recuperación de contraseña disponible próximamente',
-                          ),
-                        ),
+                    : () => context.push(
+                        '/forgot-password',
+                        extra: _emailCtrl.text.trim().isEmpty
+                            ? null
+                            : _emailCtrl.text.trim(),
                       ),
                 child: const Text('¿Olvidaste tu contraseña?'),
               ),
