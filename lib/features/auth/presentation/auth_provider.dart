@@ -38,10 +38,16 @@ class AuthNotifier extends Notifier<AuthState> {
     String email,
     String password, {
     required UserRole role,
+    required bool acceptedTerms,
   }) async {
     state = const AuthState.loading();
     try {
-      state = await repo.loginEmailPassword(email, password, role: role);
+      state = await repo.loginEmailPassword(
+        email,
+        password,
+        role: role,
+        acceptedTerms: acceptedTerms,
+      );
       await _persist();
     } on AuthException catch (e) {
       state = AuthState.failure(e.message);
@@ -57,6 +63,7 @@ class AuthNotifier extends Notifier<AuthState> {
     required String email,
     required String password,
     required UserRole role,
+    required bool acceptedTerms,
     String? phone,
     String? city,
   }) async {
@@ -67,6 +74,7 @@ class AuthNotifier extends Notifier<AuthState> {
         email: email,
         password: password,
         role: role,
+        acceptedTerms: acceptedTerms,
         phone: phone,
         city: city,
       );
@@ -131,10 +139,16 @@ class AuthNotifier extends Notifier<AuthState> {
     }
   }
 
-  Future<void> signInWithGoogle(UserRole role) async {
+  Future<void> signInWithGoogle(
+    UserRole role, {
+    required bool acceptedTerms,
+  }) async {
     state = const AuthState.loading();
     try {
-      state = await repo.signInWithGoogle(role: role);
+      state = await repo.signInWithGoogle(
+        role: role,
+        acceptedTerms: acceptedTerms,
+      );
       await _persist();
     } on AuthException catch (e) {
       state = AuthState.failure(e.message);
@@ -152,6 +166,7 @@ class AuthNotifier extends Notifier<AuthState> {
   Future<void> signInWithGoogleToken(
     String idToken, {
     required UserRole role,
+    required bool acceptedTerms,
     String? displayName,
   }) async {
     state = const AuthState.loading();
@@ -159,6 +174,7 @@ class AuthNotifier extends Notifier<AuthState> {
       state = await repo.signInWithGoogleToken(
         idToken,
         role: role,
+        acceptedTerms: acceptedTerms,
         displayName: displayName,
       );
       await _persist();

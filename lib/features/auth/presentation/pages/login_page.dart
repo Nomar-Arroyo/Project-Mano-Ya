@@ -15,6 +15,7 @@ import '../auth_provider.dart';
 import '../widgets/auth_scaffold.dart';
 import '../widgets/google_sign_in_button.dart';
 import '../widgets/role_selector.dart';
+import '../widgets/terms_acceptance_field.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -28,6 +29,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   UserRole _selectedRole = UserRole.client;
+  bool _acceptedTerms = false;
 
   @override
   void dispose() {
@@ -38,6 +40,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   void _submit() {
     FocusScope.of(context).unfocus();
+    if (!_acceptedTerms) return;
     if (!_formKey.currentState!.validate()) return;
     ref
         .read(authStateProvider.notifier)
@@ -45,6 +48,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           _emailCtrl.text.trim(),
           _passCtrl.text,
           role: _selectedRole,
+          acceptedTerms: _acceptedTerms,
         );
   }
 
@@ -109,6 +113,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               onChanged: (_) =>
                   ref.read(authStateProvider.notifier).clearError(),
             ),
+            const SizedBox(height: AppSpacing.md),
+            TermsAcceptanceField(
+              value: _acceptedTerms,
+              enabled: !loading,
+              onChanged: (value) => setState(() => _acceptedTerms = value),
+            ),
             if (state.errorMessage != null) ...[
               const SizedBox(height: AppSpacing.md),
               InlineMessage(
@@ -134,12 +144,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               label: 'Iniciar sesión',
               icon: Icons.login,
               loading: loading,
-              onPressed: _submit,
+              onPressed: _acceptedTerms ? _submit : null,
             ),
             const SizedBox(height: AppSpacing.lg),
             const OrDivider(),
             const SizedBox(height: AppSpacing.lg),
-            GoogleSignInButton(role: _selectedRole),
+            GoogleSignInButton(
+              role: _selectedRole,
+              termsAccepted: _acceptedTerms,
+            ),
           ],
         ),
       ),

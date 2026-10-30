@@ -5,6 +5,7 @@ import '../../features/auth/presentation/pages/email_verification_page.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/pages/password_recovery_page.dart';
 import '../../features/auth/presentation/pages/register_page.dart';
+import '../../features/auth/presentation/pages/terms_and_conditions_page.dart';
 import '../../features/auth/presentation/pages/two_factor_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/profile/presentation/pages/favorites_page.dart';
@@ -26,6 +27,10 @@ class AppRouter {
       GoRoute(path: '/splash', builder: (_, _) => const SplashPage()),
       GoRoute(path: '/login', builder: (_, _) => const LoginPage()),
       GoRoute(path: '/register', builder: (_, _) => const RegisterPage()),
+      GoRoute(
+        path: '/terms',
+        builder: (_, _) => const TermsAndConditionsPage(),
+      ),
       GoRoute(
         path: '/verify-email',
         builder: (_, state) =>

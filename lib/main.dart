@@ -11,6 +11,7 @@ import 'core/theme/app_theme.dart';
 import 'core/theme/theme_provider.dart';
 import 'features/auth/data/auth_repository.dart';
 import 'features/auth/domain/auth_state.dart';
+import 'features/auth/domain/terms_policy.dart';
 import 'features/auth/presentation/auth_provider.dart';
 import 'features/workers/presentation/availability_provider.dart';
 
@@ -25,11 +26,14 @@ Future<void> main() async {
   final initialMode = await ThemeModeNotifier.loadSaved();
   final initialAuth = SupabaseService.isConfigured
       ? await AuthRepository().restoreSession()
-      : await StorageService.loadSessionMap().then(
-          (sessionMap) => sessionMap != null
-              ? AuthState.fromJson(sessionMap)
-              : const AuthState.unauthenticated(),
-        );
+      : await StorageService.loadSessionMap().then((sessionMap) async {
+          if (sessionMap == null ||
+              sessionMap['termsVersion'] != TermsPolicy.version) {
+            await StorageService.clearSession();
+            return const AuthState.unauthenticated();
+          }
+          return AuthState.fromJson(sessionMap);
+        });
   final initialAvailability = await WorkerAvailabilityNotifier.loadSaved();
 
   runApp(

@@ -9,6 +9,7 @@ class AuthState {
   final String? phone;
   final String? city;
   final String? avatarUrl;
+  final String? termsVersion;
   final bool twoFactorEnabled;
   final bool loading;
 
@@ -25,6 +26,7 @@ class AuthState {
     this.phone,
     this.city,
     this.avatarUrl,
+    this.termsVersion,
     this.twoFactorEnabled = false,
     this.loading = false,
     this.errorMessage,
@@ -38,16 +40,14 @@ class AuthState {
   const AuthState.failure(String message)
     : this(isAuthenticated: false, errorMessage: message);
 
-  factory AuthState.emailConfirmationPending(
-    String email, {
-    String? message,
-  }) => AuthState(
-    isAuthenticated: false,
-    successMessage:
-        message ??
-        'Enviamos un código de verificación a $email. '
-            'Escríbelo para confirmar tu correo y continuar.',
-  );
+  factory AuthState.emailConfirmationPending(String email, {String? message}) =>
+      AuthState(
+        isAuthenticated: false,
+        successMessage:
+            message ??
+            'Enviamos un código de verificación a $email. '
+                'Escríbelo para confirmar tu correo y continuar.',
+      );
 
   static AuthState authenticated({
     required String userId,
@@ -57,6 +57,7 @@ class AuthState {
     String? phone,
     String? city,
     String? avatarUrl,
+    String? termsVersion,
     bool twoFactorEnabled = false,
   }) => AuthState(
     isAuthenticated: true,
@@ -67,6 +68,7 @@ class AuthState {
     phone: phone,
     city: city,
     avatarUrl: avatarUrl,
+    termsVersion: termsVersion,
     twoFactorEnabled: twoFactorEnabled,
   );
 
@@ -79,6 +81,7 @@ class AuthState {
     String? phone,
     String? city,
     String? avatarUrl,
+    String? termsVersion,
     bool? twoFactorEnabled,
     bool? loading,
     bool clearMessages = false,
@@ -92,6 +95,7 @@ class AuthState {
       phone: phone ?? this.phone,
       city: city ?? this.city,
       avatarUrl: avatarUrl ?? this.avatarUrl,
+      termsVersion: termsVersion ?? this.termsVersion,
       twoFactorEnabled: twoFactorEnabled ?? this.twoFactorEnabled,
       loading: loading ?? this.loading,
       errorMessage: clearMessages ? null : errorMessage,
@@ -109,6 +113,7 @@ class AuthState {
     'phone': phone,
     'city': city,
     'avatarUrl': avatarUrl,
+    'termsVersion': termsVersion,
     'twoFactorEnabled': twoFactorEnabled,
   };
 
@@ -129,6 +134,7 @@ class AuthState {
       phone: json['phone'] as String?,
       city: json['city'] as String?,
       avatarUrl: json['avatarUrl'] as String?,
+      termsVersion: json['termsVersion'] as String?,
       twoFactorEnabled: json['twoFactorEnabled'] as bool? ?? false,
     );
   }

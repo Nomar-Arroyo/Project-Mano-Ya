@@ -46,3 +46,7 @@ verify_jwt = false
 # valida el token antes de consultar catálogo o utilizar Ollama.
 [functions.recommend-workers]
 verify_jwt = true
+
+# La funcion guarda la aceptacion y sus metadatos de auditoria.
+[functions.accept-terms]
+verify_jwt = true

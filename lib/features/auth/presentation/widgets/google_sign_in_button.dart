@@ -24,11 +24,13 @@ class GoogleSignInButton extends ConsumerStatefulWidget {
 
   /// Texto del botón en Android e iOS.
   final String label;
+  final bool termsAccepted;
 
   const GoogleSignInButton({
     super.key,
     required this.role,
     this.label = 'Continuar con Google',
+    this.termsAccepted = false,
   });
 
   @override
@@ -91,11 +93,24 @@ class _GoogleSignInButtonState extends ConsumerState<GoogleSignInButton> {
 
   /// Valida el token de Google en Supabase.
   Future<void> _iniciarSesion(String idToken, String? displayName) async {
+    if (!widget.termsAccepted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Debes aceptar los términos y condiciones para continuar.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
     await ref
         .read(authStateProvider.notifier)
         .signInWithGoogleToken(
           idToken,
           role: widget.role,
+          acceptedTerms: widget.termsAccepted,
           displayName: displayName,
         );
   }
@@ -107,8 +122,14 @@ class _GoogleSignInButtonState extends ConsumerState<GoogleSignInButton> {
         label: 'Continuar con Google (demo)',
         icon: Icons.g_mobiledata,
         variant: AppButtonVariant.outline,
-        onPressed: () =>
-            ref.read(authStateProvider.notifier).signInWithGoogle(widget.role),
+        onPressed: widget.termsAccepted
+            ? () => ref
+                  .read(authStateProvider.notifier)
+                  .signInWithGoogle(
+                    widget.role,
+                    acceptedTerms: widget.termsAccepted,
+                  )
+            : null,
       );
     }
 
@@ -117,10 +138,7 @@ class _GoogleSignInButtonState extends ConsumerState<GoogleSignInButton> {
         return SizedBox(
           height: 44,
           child: Center(
-            child: Text(
-              _errorMessage!,
-              textAlign: TextAlign.center,
-            ),
+            child: Text(_errorMessage!, textAlign: TextAlign.center),
           ),
         );
       }
@@ -136,6 +154,14 @@ class _GoogleSignInButtonState extends ConsumerState<GoogleSignInButton> {
           ),
         );
       }
+      if (!widget.termsAccepted) {
+        return const SizedBox(
+          height: 44,
+          child: Center(
+            child: Text('Acepta los términos para habilitar Google'),
+          ),
+        );
+      }
       return platform.buildWebGoogleButton();
     }
 
@@ -143,8 +169,14 @@ class _GoogleSignInButtonState extends ConsumerState<GoogleSignInButton> {
       label: widget.label,
       icon: Icons.g_mobiledata,
       variant: AppButtonVariant.outline,
-      onPressed: () =>
-          ref.read(authStateProvider.notifier).signInWithGoogle(widget.role),
+      onPressed: widget.termsAccepted
+          ? () => ref
+                .read(authStateProvider.notifier)
+                .signInWithGoogle(
+                  widget.role,
+                  acceptedTerms: widget.termsAccepted,
+                )
+          : null,
     );
   }
 }

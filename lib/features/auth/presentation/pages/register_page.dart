@@ -17,6 +17,7 @@ import '../auth_provider.dart';
 import '../widgets/auth_scaffold.dart';
 import '../widgets/google_sign_in_button.dart';
 import '../widgets/role_selector.dart';
+import '../widgets/terms_acceptance_field.dart';
 
 class RegisterPage extends ConsumerStatefulWidget {
   const RegisterPage({super.key});
@@ -33,6 +34,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   final _phoneCtrl = TextEditingController();
   String? _cityName;
   UserRole _role = UserRole.client;
+  bool _acceptedTerms = false;
 
   @override
   void dispose() {
@@ -45,6 +47,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
 
   void _submit() {
     FocusScope.of(context).unfocus();
+    if (!_acceptedTerms) return;
     if (!_formKey.currentState!.validate()) return;
     ref
         .read(authStateProvider.notifier)
@@ -53,6 +56,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           email: _emailCtrl.text.trim(),
           password: _passCtrl.text,
           role: _role,
+          acceptedTerms: _acceptedTerms,
           phone: VenezuelanPhoneInputFormatter.formatInternational(
             _phoneCtrl.text,
           ),
@@ -170,22 +174,33 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                 type: MessageType.success,
               ),
             ],
+            const SizedBox(height: AppSpacing.md),
+            TermsAcceptanceField(
+              value: _acceptedTerms,
+              enabled: !state.loading,
+              onChanged: (value) => setState(() => _acceptedTerms = value),
+            ),
             const SizedBox(height: AppSpacing.lg),
             AppButton(
               label: 'Crear cuenta',
               icon: Icons.person_add_alt_1,
               loading: state.loading,
-              onPressed: _submit,
+              onPressed: _acceptedTerms ? _submit : null,
             ),
             const SizedBox(height: AppSpacing.lg),
             const OrDivider(),
             const SizedBox(height: AppSpacing.lg),
-            GoogleSignInButton(role: _role, label: 'Registrarme con Google'),
+            GoogleSignInButton(
+              role: _role,
+              label: 'Registrarme con Google',
+              termsAccepted: _acceptedTerms,
+            ),
           ],
         ),
       ),
-      footer: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+      footer: Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           const Text('¿Ya tienes cuenta?'),
           TextButton(

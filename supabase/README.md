@@ -15,6 +15,8 @@ proyecto `waxypsqomsljcljdqwra`.
 | `migrations/20240101000500_webhook_secret.sql` | Secreto del webhook de reportes. |
 | `migrations/20261025000000_backend_security_and_booking.sql` | Protección de datos, catálogo, citas, cobros, reportes, Storage y cuota de IA. |
 | `migrations/20261029000000_add_422_mobile_prefix.sql` | Acepta el prefijo móvil venezolano `422` al normalizar teléfonos. |
+| `migrations/20261029000100_terms_acceptances.sql` | Guarda las aceptaciones del acuerdo en un registro de auditoría de solo lectura para el usuario. |
+| `functions/accept-terms/index.ts` | Valida la sesión y guarda versión, hora, IP disponible e identificador del usuario al aceptar. |
 | `functions/recommend-workers/index.ts` | Edge Function opcional para clasificar solicitudes con Ollama y consultar trabajadores reales. |
 
 ## Cómo aplicarlo
@@ -37,6 +39,22 @@ La migración `20261029000000_add_422_mobile_prefix.sql` actualiza la función d
 normalización para admitir los móviles con prefijo `422`. Para que el registro
 los acepte en el proyecto remoto, aplica las migraciones pendientes con
 `supabase db push` desde una CLI autenticada y enlazada al proyecto.
+
+La aplicación exige aceptar la versión vigente de los términos para registrarse
+o iniciar sesión, incluyendo Google. Para activar el registro auditable en el
+backend, aplica la migración y despliega la función:
+
+```bash
+supabase db push
+supabase functions deploy accept-terms
+```
+
+La función obtiene el `user_id` y la hora del servidor; guarda la IP solo si el
+proxy entrega ese dato. Conserva un registro por usuario y versión; los usuarios
+autenticados solo pueden leer sus propios registros y las filas no se pueden
+modificar ni borrar mediante las operaciones normales de la base de datos. El
+acceso a cuentas existentes también requiere marcar la casilla de la versión
+vigente.
 
 ## Qué incluye el esquema
 

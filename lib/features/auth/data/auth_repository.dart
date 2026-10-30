@@ -9,6 +9,7 @@ import '../../../core/config/app_config.dart';
 import '../../../core/services/supabase_service.dart';
 import '../domain/auth_state.dart';
 import '../domain/mfa_enrollment.dart';
+import '../domain/terms_policy.dart';
 import '../../shared/models/user_role.dart';
 
 /// Error de autenticación (credenciales inválidas, cuenta inexistente, etc.).
@@ -40,6 +41,10 @@ class AuthRepository {
     final client = SupabaseService.client;
     final user = client?.auth.currentUser;
     if (user == null) return const AuthState.unauthenticated();
+    if (user.userMetadata?['terms_version'] != TermsPolicy.version) {
+      await client!.auth.signOut();
+      return const AuthState.unauthenticated();
+    }
     if (user.emailConfirmedAt == null) {
       await client!.auth.signOut();
       return const AuthState.unauthenticated();
@@ -52,7 +57,13 @@ class AuthRepository {
     String email,
     String password, {
     UserRole role = UserRole.client,
+    required bool acceptedTerms,
   }) async {
+    if (!acceptedTerms) {
+      throw const AuthException(
+        'Debes aceptar los términos y condiciones para iniciar sesión.',
+      );
+    }
     final client = SupabaseService.client;
     if (client == null) {
       throw const AuthException(
@@ -75,7 +86,8 @@ class AuthRepository {
           'Confirma tu correo electrónico antes de iniciar sesión.',
         );
       }
-      _state = await _stateFromUser(user, fallbackRole: role);
+      final acceptedUser = await _recordTermsAcceptance(client);
+      _state = await _stateFromUser(acceptedUser, fallbackRole: role);
       return _state;
     } on supabase.AuthException catch (error) {
       if (error.code == 'invalid_credentials' ||
@@ -100,9 +112,15 @@ class AuthRepository {
     required String email,
     required String password,
     required UserRole role,
+    required bool acceptedTerms,
     String? phone,
     String? city,
   }) async {
+    if (!acceptedTerms) {
+      throw const AuthException(
+        'Debes aceptar los términos y condiciones para crear una cuenta.',
+      );
+    }
     final client = SupabaseService.client;
     if (client != null) {
       try {
@@ -112,6 +130,8 @@ class AuthRepository {
           data: {
             'full_name': name,
             'role': role.name,
+            'terms_accepted': true,
+            'terms_version': TermsPolicy.version,
             if (phone != null && phone.isNotEmpty) 'phone': phone,
             if (city != null && city.isNotEmpty) 'city': city,
           },
@@ -184,7 +204,15 @@ class AuthRepository {
           'El correo aún no aparece verificado. Revisa el código e inténtalo de nuevo.',
         );
       }
-      _state = await _stateFromUser(user);
+      if (user.userMetadata?['terms_version'] != TermsPolicy.version ||
+          user.userMetadata?['terms_accepted'] != true) {
+        await client.auth.signOut();
+        throw const AuthException(
+          'Debes aceptar los términos y condiciones antes de crear tu cuenta.',
+        );
+      }
+      final acceptedUser = await _recordTermsAcceptance(client);
+      _state = await _stateFromUser(acceptedUser);
       return _state;
     } on supabase.AuthException catch (error) {
       throw _emailDeliveryError(error);
@@ -378,7 +406,15 @@ class AuthRepository {
   ///
   /// En la web este metodo no se usa: el boton oficial de Google devuelve el
   /// token y el flujo continua en [signInWithGoogleToken].
-  Future<AuthState> signInWithGoogle({required UserRole role}) async {
+  Future<AuthState> signInWithGoogle({
+    required UserRole role,
+    required bool acceptedTerms,
+  }) async {
+    if (!acceptedTerms) {
+      throw const AuthException(
+        'Debes aceptar los términos y condiciones para continuar.',
+      );
+    }
     final client = SupabaseService.client;
     if (client == null) {
       // MOCK de Google Sign-In (no requiere credenciales reales por ahora)
@@ -388,6 +424,7 @@ class AuthRepository {
         email: 'usuario.mock@gmail.com',
         displayName: 'Usuario Mock',
         role: role,
+        termsVersion: TermsPolicy.version,
       );
       return _state;
     }
@@ -417,6 +454,7 @@ class AuthRepository {
       return await signInWithGoogleToken(
         idToken,
         role: role,
+        acceptedTerms: acceptedTerms,
         displayName: account.displayName,
       );
     } on AuthException {
@@ -434,8 +472,14 @@ class AuthRepository {
   Future<AuthState> signInWithGoogleToken(
     String idToken, {
     required UserRole role,
+    required bool acceptedTerms,
     String? displayName,
   }) async {
+    if (!acceptedTerms) {
+      throw const AuthException(
+        'Debes aceptar los términos y condiciones para continuar.',
+      );
+    }
     final client = SupabaseService.client;
     if (client == null) {
       throw const AuthException(
@@ -457,7 +501,7 @@ class AuthRepository {
 
       // El rol y el nombre se guardan en los metadatos del usuario para que
       // la app los use en las pantallas de perfil y panel.
-      final updated = await client.auth.updateUser(
+      await client.auth.updateUser(
         supabase.UserAttributes(
           data: {
             'full_name': displayName ?? user.userMetadata?['full_name'],
@@ -466,7 +510,8 @@ class AuthRepository {
         ),
       );
 
-      _state = await _stateFromUser(updated.user ?? user, fallbackRole: role);
+      final acceptedUser = await _recordTermsAcceptance(client);
+      _state = await _stateFromUser(acceptedUser, fallbackRole: role);
       return _state;
     } on supabase.AuthException catch (error) {
       throw AuthException(error.message);
@@ -639,6 +684,54 @@ class AuthRepository {
     _state = const AuthState.unauthenticated();
   }
 
+  Future<supabase.User> _recordTermsAcceptance(
+    supabase.SupabaseClient client,
+  ) async {
+    try {
+      final response = await client.functions.invoke(
+        'accept-terms',
+        body: {'accepted': true, 'terms_version': TermsPolicy.version},
+      );
+      final data = response.data;
+      if (response.status < 200 ||
+          response.status >= 300 ||
+          data is! Map ||
+          data['ok'] != true ||
+          data['terms_version'] != TermsPolicy.version ||
+          data['accepted_at'] is! String) {
+        final message = data is Map && data['error'] is String
+            ? data['error'] as String
+            : 'No se pudo confirmar el registro de aceptación.';
+        throw AuthException(message);
+      }
+
+      final updated = await client.auth.updateUser(
+        supabase.UserAttributes(
+          data: {
+            'terms_accepted': true,
+            'terms_version': TermsPolicy.version,
+            'terms_accepted_at': data['accepted_at'],
+          },
+        ),
+      );
+      if (updated.user == null) {
+        throw const AuthException(
+          'No se pudo guardar la aceptación en tu cuenta.',
+        );
+      }
+      return updated.user!;
+    } on AuthException {
+      await client.auth.signOut();
+      rethrow;
+    } catch (error) {
+      await client.auth.signOut();
+      throw AuthException(
+        'No se pudo guardar la aceptación de los términos. '
+        'Inténtalo de nuevo. ($error)',
+      );
+    }
+  }
+
   Future<AuthState> _stateFromUser(
     supabase.User user, {
     UserRole fallbackRole = UserRole.client,
@@ -659,6 +752,7 @@ class AuthRepository {
       phone: metadata['phone'] as String?,
       city: metadata['city'] as String?,
       avatarUrl: metadata['avatar_url'] as String?,
+      termsVersion: metadata['terms_version'] as String?,
       twoFactorEnabled: twoFactor,
     );
   }
