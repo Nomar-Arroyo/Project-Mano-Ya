@@ -50,5 +50,24 @@
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
   <script src="flutter_bootstrap.js" async></script>
+  <script>
+    // Limpieza única: las versiones anteriores registraban un service worker que
+    // servía la app vieja desde caché. Se desregistra y se borran sus cachés para
+    // que la próxima carga tome los archivos actuales del servidor.
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function (registrations) {
+        registrations.forEach(function (registration) {
+          registration.unregister();
+        });
+      });
+    }
+    if (window.caches) {
+      caches.keys().then(function (keys) {
+        keys.forEach(function (key) {
+          caches.delete(key);
+        });
+      });
+    }
+  </script>
 </body>
 </html>
