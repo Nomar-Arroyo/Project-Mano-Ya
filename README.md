@@ -183,6 +183,10 @@ el token `{{ .Token }}` (la plantilla local está en
 `supabase/config.toml` habilita `auth.email.enable_confirmations`; consulta los
 mensajes de desarrollo en Inbucket.
 
+El proyecto remoto genera códigos de 8 dígitos (Supabase permite entre 6 y 10),
+así que la app acepta ese rango en la pantalla de verificación y en la de
+recuperación. No hace falta cambiar la longitud en el panel para que funcione.
+
 Si la confirmación está desactivada, el cliente bloquea el acceso e informa que
 la configuración debe corregirse. En modo mock no se crean cuentas ni se envían
 correos. El inicio de sesión con Google usa la verificación gestionada por
@@ -220,6 +224,12 @@ Para que los códigos lleguen a cualquier usuario:
 3. En **Authentication > Rate Limits** sube el límite de correos por hora.
 4. Envía un registro de prueba y revisa spam la primera vez: el remitente por
    defecto de Supabase tiene mala reputación.
+
+Configuración actual del proyecto remoto: Gmail con contraseña de aplicación
+(`smtp.gmail.com`, puerto `465`), remitente **Mano Ya**, límite de 30 correos por
+hora y `site_url` en la web de Vercel. Gmail sirve para validar el flujo, pero
+para producción conviene un dominio propio verificado, porque el cupo diario de
+Gmail es bajo y el remitente `@gmail.com` se marca como spam con facilidad.
 
 ### Inicio de sesión con Google (OAuth)
 
