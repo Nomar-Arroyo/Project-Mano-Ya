@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/constants/colors.dart';
+import '../../../../core/constants/colors.dart';
+import '../../../../core/theme/app_spacing.dart';
+import '../../../shared/widgets/user_avatar.dart';
 import '../../domain/worker.dart';
 
-/// Tarjeta resumen de un trabajador dentro del catálogo. Permite abrir el
-/// detalle, contactar por WhatsApp o solicitar un presupuesto.
+/// Tarjeta resumen de un trabajador dentro del catálogo.
 class WorkerCard extends StatelessWidget {
   final Worker worker;
   final VoidCallback onRequest;
@@ -21,134 +22,188 @@ class WorkerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    child: Text(
-                      worker.name.isNotEmpty
-                          ? worker.name.substring(0, 1).toUpperCase()
-                          : '?',
+    final theme = Theme.of(context);
+    final statusColor = worker.isAvailable
+        ? ManoYaColors.success
+        : ManoYaColors.muted;
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: AppDurations.medium,
+      curve: Curves.easeOutCubic,
+      builder: (context, progress, child) => Opacity(
+        opacity: progress,
+        child: Transform.translate(
+          offset: Offset(0, (1 - progress) * 12),
+          child: child,
+        ),
+      ),
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    UserAvatar(
+                      imageUrl: worker.avatarUrl,
+                      name: worker.name,
+                      radius: 27,
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          worker.name,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${worker.category} • ${worker.subcategory} • '
-                          '${worker.city}',
-                          style: const TextStyle(
-                            color: ManoYaColors.muted,
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.star,
-                              size: 14,
-                              color: ManoYaColors.warning,
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            worker.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
                             ),
-                            const SizedBox(width: 4),
+                          ),
+                          if (worker.subcategory.isNotEmpty)
                             Text(
-                              '${worker.rating.toStringAsFixed(1)} '
-                              '(${worker.reviewsCount})',
-                              style: const TextStyle(
-                                color: ManoYaColors.muted,
-                                fontSize: 12,
+                              '${worker.subcategory} · ${worker.category}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: ManoYaColors.textSecondary,
                               ),
                             ),
-                          ],
+                          const SizedBox(height: AppSpacing.xs),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.location_on_outlined,
+                                size: 15,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: AppSpacing.xs),
+                              Expanded(
+                                child: Text(
+                                  worker.city,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodySmall,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    _Badge(
+                      label: worker.isAvailable
+                          ? 'Disponible ahora'
+                          : 'En descanso',
+                      color: statusColor,
+                      background: statusColor.withValues(alpha: 0.10),
+                      icon: Icons.circle,
+                      iconSize: 8,
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.star_rounded,
+                          size: 17,
+                          color: ManoYaColors.warning,
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                        Text(
+                          worker.rating.toStringAsFixed(1),
+                          style: theme.textTheme.labelLarge,
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                        Text(
+                          '(${worker.reviewsCount})',
+                          style: theme.textTheme.bodySmall,
                         ),
                       ],
                     ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color:
-                          (worker.isAvailable
-                                  ? ManoYaColors.success
-                                  : Colors.grey)
-                              .withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      worker.isAvailable ? 'Disponible' : 'En descanso',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: worker.isAvailable
-                            ? ManoYaColors.success
-                            : Colors.grey,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  if (worker.identityVerified)
-                    const _Badge(label: 'Identidad Verificada'),
-                  if (worker.workGuaranteed)
-                    const _Badge(
-                      label: 'Trabajo Garantizado',
-                      color: ManoYaColors.success,
-                    ),
-                  if (worker.availableToday)
-                    const _Badge(label: 'Disponible Hoy'),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  if (onWhatsApp != null)
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: onWhatsApp,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: ManoYaColors.success,
+                  ],
+                ),
+                if (worker.identityVerified ||
+                    worker.workGuaranteed ||
+                    worker.availableToday) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Wrap(
+                    spacing: AppSpacing.sm,
+                    runSpacing: AppSpacing.sm,
+                    children: [
+                      if (worker.identityVerified)
+                        const _Badge(
+                          label: 'Identidad verificada',
+                          icon: Icons.verified_outlined,
+                          color: ManoYaColors.primary,
+                          background: ManoYaColors.verifiedSurface,
                         ),
-                        icon: const Icon(Icons.chat, size: 18),
-                        label: const Text('WhatsApp'),
-                      ),
-                    ),
-                  if (onWhatsApp != null) const SizedBox(width: 8),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: onRequest,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: ManoYaColors.secondary,
-                      ),
-                      child: const Text('Presupuesto'),
-                    ),
+                      if (worker.workGuaranteed)
+                        const _Badge(
+                          label: 'Trabajo garantizado',
+                          icon: Icons.shield_outlined,
+                          color: ManoYaColors.whatsappGreen,
+                          background: ManoYaColors.whatsappSurface,
+                        ),
+                      if (worker.availableToday)
+                        const _Badge(
+                          label: 'Disponible hoy',
+                          icon: Icons.today_outlined,
+                        ),
+                    ],
                   ),
                 ],
-              ),
-            ],
+                const SizedBox(height: AppSpacing.md),
+                Row(
+                  children: [
+                    if (onWhatsApp != null) ...[
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: onWhatsApp,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: ManoYaColors.whatsappGreen,
+                            backgroundColor: ManoYaColors.whatsappSurface,
+                            side: const BorderSide(
+                              color: ManoYaColors.success,
+                              width: 1.2,
+                            ),
+                          ),
+                          icon: const Icon(Icons.chat_outlined, size: 18),
+                          label: const Text('WhatsApp'),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                    ],
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: onRequest,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: ManoYaColors.secondary,
+                          foregroundColor: Colors.white,
+                        ),
+                        icon: const Icon(Icons.receipt_long_outlined, size: 18),
+                        label: const Text('Presupuesto'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -156,25 +211,45 @@ class WorkerCard extends StatelessWidget {
   }
 }
 
-/// Insignia de confianza reutilizable.
 class _Badge extends StatelessWidget {
   final String label;
-  final Color? color;
+  final Color color;
+  final Color? background;
+  final IconData? icon;
+  final double iconSize;
 
-  const _Badge({required this.label, this.color});
+  const _Badge({
+    required this.label,
+    this.color = ManoYaColors.muted,
+    this.background,
+    this.icon,
+    this.iconSize = 14,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final c = color ?? ManoYaColors.primary;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: c.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
+        color: background ?? color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
       ),
-      child: Text(
-        label,
-        style: TextStyle(color: c, fontWeight: FontWeight.w500, fontSize: 12),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: iconSize, color: color),
+            const SizedBox(width: AppSpacing.xs),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }

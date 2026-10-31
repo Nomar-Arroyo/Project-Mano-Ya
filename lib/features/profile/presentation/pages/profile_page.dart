@@ -71,9 +71,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final themeMode = ref.watch(themeModeProvider);
     final isWorker = state.role == UserRole.worker;
     final available = ref.watch(workerAvailabilityProvider);
-    final surface = Theme.of(context).colorScheme.surface;
+    final theme = Theme.of(context);
+    final surface = theme.colorScheme.surface;
     final tileShape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
     );
 
     return Scaffold(
@@ -93,99 +94,85 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // --- Encabezado con los datos del usuario ---
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: ManoYaColors.brandGradient,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: ManoYaColors.primary.withValues(alpha: 0.18),
-                    blurRadius: 18,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(3),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.75),
-                            width: 2,
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: theme.colorScheme.primary.withValues(
+                                alpha: 0.22,
+                              ),
+                              width: 2,
+                            ),
+                          ),
+                          child: UserAvatar(
+                            imageUrl: state.avatarUrl,
+                            name: state.displayName,
+                            radius: 32,
                           ),
                         ),
-                        child: UserAvatar(
-                          imageUrl: state.avatarUrl,
-                          name: state.displayName,
-                          radius: 32,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'MI PERFIL',
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.78),
-                                letterSpacing: 1.2,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'MI PERFIL',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                  letterSpacing: 1.1,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              state.displayName?.trim().isNotEmpty == true
-                                  ? state.displayName!
-                                  : 'Bienvenido',
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 21,
-                                fontWeight: FontWeight.w700,
+                              const SizedBox(height: 4),
+                              Text(
+                                state.displayName?.trim().isNotEmpty == true
+                                    ? state.displayName!
+                                    : 'Bienvenido',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.titleLarge,
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                            _ProfileBadge(label: _roleLabel(state.role)),
-                          ],
+                              const SizedBox(height: 8),
+                              _ProfileBadge(label: _roleLabel(state.role)),
+                            ],
+                          ),
                         ),
-                      ),
+                      ],
+                    ),
+                    if (state.email?.isNotEmpty == true ||
+                        state.city?.isNotEmpty == true ||
+                        state.phone?.isNotEmpty == true) ...[
+                      const SizedBox(height: 16),
+                      const Divider(),
+                      if (state.email?.isNotEmpty == true)
+                        _ProfileDetail(
+                          icon: Icons.mail_outline,
+                          value: state.email!,
+                        ),
+                      if (state.city?.isNotEmpty == true)
+                        _ProfileDetail(
+                          icon: Icons.location_on_outlined,
+                          value: state.city!,
+                        ),
+                      if (state.phone?.isNotEmpty == true)
+                        _ProfileDetail(
+                          icon: Icons.phone_outlined,
+                          value:
+                              VenezuelanPhoneInputFormatter.formatInternational(
+                                state.phone!,
+                              ),
+                        ),
                     ],
-                  ),
-                  if (state.email?.isNotEmpty == true ||
-                      state.city?.isNotEmpty == true ||
-                      state.phone?.isNotEmpty == true) ...[
-                    const SizedBox(height: 18),
-                    Divider(color: Colors.white.withValues(alpha: 0.22)),
-                    if (state.email?.isNotEmpty == true)
-                      _ProfileDetail(
-                        icon: Icons.mail_outline,
-                        value: state.email!,
-                      ),
-                    if (state.city?.isNotEmpty == true)
-                      _ProfileDetail(
-                        icon: Icons.location_on_outlined,
-                        value: state.city!,
-                      ),
-                    if (state.phone?.isNotEmpty == true)
-                      _ProfileDetail(
-                        icon: Icons.phone_outlined,
-                        value:
-                            VenezuelanPhoneInputFormatter.formatInternational(
-                              state.phone!,
-                            ),
-                      ),
                   ],
-                ],
+                ),
               ),
             ),
             const SizedBox(height: 24),
@@ -333,22 +320,24 @@ class _ProfileBadge extends StatelessWidget {
   const _ProfileBadge({required this.label});
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-    decoration: BoxDecoration(
-      color: Colors.white.withValues(alpha: 0.16),
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
-    ),
-    child: Text(
-      label,
-      style: const TextStyle(
-        color: Colors.white,
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withValues(alpha: 0.09),
+        borderRadius: BorderRadius.circular(20),
       ),
-    ),
-  );
+      child: Text(
+        label,
+        style: TextStyle(
+          color: theme.colorScheme.primary,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
 }
 
 class _ProfileDetail extends StatelessWidget {
@@ -358,26 +347,26 @@ class _ProfileDetail extends StatelessWidget {
   const _ProfileDetail({required this.icon, required this.value});
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: 8),
-    child: Row(
-      children: [
-        Icon(icon, size: 17, color: Colors.white.withValues(alpha: 0.82)),
-        const SizedBox(width: 9),
-        Expanded(
-          child: Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.94),
-              fontSize: 13,
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 17, color: theme.colorScheme.onSurfaceVariant),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyMedium,
             ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }
 
 /// Tarjeta que muestra la bio del trabajador.

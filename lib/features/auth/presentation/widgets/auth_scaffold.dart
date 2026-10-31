@@ -73,24 +73,33 @@ class _BrandPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
       width: double.infinity,
-      height: compact ? 200 : double.infinity,
+      height: compact ? 156 : double.infinity,
       decoration: BoxDecoration(
-        gradient: ManoYaColors.brandGradient,
+        color: compact ? theme.colorScheme.surfaceContainerLow : null,
+        gradient: compact ? null : ManoYaColors.brandGradient,
         borderRadius: compact
             ? const BorderRadius.vertical(bottom: Radius.circular(AppRadius.xl))
             : null,
       ),
       child: Stack(
         children: [
-          const _DecoCircle(top: -60, right: -40, size: 220, opacity: 0.10),
-          const _DecoCircle(bottom: -70, left: -50, size: 260, opacity: 0.08),
-          const _DecoCircle(top: 130, left: -30, size: 120, opacity: 0.12),
+          if (!compact) ...[
+            const _DecoCircle(top: -60, right: -40, size: 220, opacity: 0.10),
+            const _DecoCircle(bottom: -70, left: -50, size: 260, opacity: 0.08),
+            const _DecoCircle(top: 130, left: -30, size: 120, opacity: 0.12),
+          ],
           Padding(
-            padding: EdgeInsets.all(compact ? AppSpacing.lg : AppSpacing.xl),
+            padding: EdgeInsets.all(compact ? AppSpacing.md : AppSpacing.xl),
             child: compact
-                ? const _BrandHeader(compact: true)
+                ? Center(
+                    child: _BrandHeader(
+                      compact: true,
+                      lightSurface: theme.brightness != Brightness.dark,
+                    ),
+                  )
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -120,38 +129,77 @@ class _BrandPanel extends StatelessWidget {
 /// Logo + nombre + eslogan.
 class _BrandHeader extends StatelessWidget {
   final bool compact;
+  final bool lightSurface;
 
-  const _BrandHeader({this.compact = false});
+  const _BrandHeader({this.compact = false, this.lightSurface = false});
 
   @override
   Widget build(BuildContext context) {
     final logoSize = compact ? 48.0 : 60.0;
+    final foreground = lightSurface ? ManoYaColors.textPrimary : Colors.white;
+    final secondaryForeground = lightSurface
+        ? ManoYaColors.muted
+        : Colors.white.withValues(alpha: 0.85);
+    final logo = Container(
+      height: logoSize,
+      width: logoSize,
+      decoration: BoxDecoration(
+        color: lightSurface
+            ? ManoYaColors.primary
+            : Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: lightSurface
+            ? null
+            : Border.all(color: Colors.white.withValues(alpha: 0.25)),
+      ),
+      padding: EdgeInsets.all(compact ? 6 : 8),
+      child: Image.asset(
+        'assets/icons/app_logo.png',
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
+        semanticLabel: 'Mano Ya',
+      ),
+    );
+    if (compact && lightSurface) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          logo,
+          const SizedBox(width: AppSpacing.md),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Mano Ya',
+                style: TextStyle(
+                  color: foreground,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'Tus oficios a la mano',
+                style: TextStyle(color: secondaryForeground, fontSize: 14),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          height: logoSize,
-          width: logoSize,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
-          ),
-          // Logotipo oficial de la marca (no se usan íconos genéricos).
-          padding: EdgeInsets.all(compact ? 6 : 8),
-          child: Image.asset(
-            'assets/icons/app_logo.png',
-            fit: BoxFit.contain,
-            filterQuality: FilterQuality.high,
-            semanticLabel: 'Mano Ya',
-          ),
-        ),
+        logo,
         SizedBox(height: compact ? AppSpacing.sm : AppSpacing.md),
         Text(
           'Mano Ya',
           style: TextStyle(
-            color: Colors.white,
+            color: foreground,
             fontSize: compact ? 26 : 30,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.5,
@@ -159,9 +207,9 @@ class _BrandHeader extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.xs),
         Text(
-          'Tus Oficios a la Mano',
+          'Tus oficios a la mano',
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.85),
+            color: secondaryForeground,
             fontSize: compact ? 14 : 15,
           ),
         ),
