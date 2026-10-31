@@ -6,7 +6,7 @@
 # Comandos utiles:
 #   supabase link --project-ref waxypsqomsljcljdqwra
 #   supabase functions deploy notify-report --no-verify-jwt
-#   supabase secrets set RESEND_API_KEY=... N8N_WEBHOOK_SECRET=... SUPPORT_EMAIL=...
+# supabase secrets set RESEND_API_KEY=... RESEND_FROM_EMAIL=... APP_ORIGIN=...
 # ======================================================================
 
 project_id = "mano-ya"
@@ -49,4 +49,8 @@ verify_jwt = true
 
 # La funcion guarda la aceptacion y sus metadatos de auditoria.
 [functions.accept-terms]
+verify_jwt = true
+
+# Envía al cliente autenticado la ficha del trabajador mediante Resend.
+[functions.send-worker-contact-card]
 verify_jwt = true

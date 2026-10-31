@@ -22,9 +22,9 @@ class CookieNotice extends StatefulWidget {
 }
 
 class _CookieNoticeState extends State<CookieNotice> {
-  static const _acknowledgedKey = 'cookie_notice_acknowledged_v1';
+  static const _decisionKey = 'cookie_consent_v2';
 
-  bool _expanded = true;
+  bool _visible = true;
   String? _errorMessage;
 
   @override
@@ -36,10 +36,10 @@ class _CookieNoticeState extends State<CookieNotice> {
   Future<void> _loadAcknowledgement() async {
     try {
       final preferences = await SharedPreferences.getInstance();
-      final acknowledged = preferences.getBool(_acknowledgedKey) ?? false;
+      final decision = preferences.getString(_decisionKey);
       if (!mounted) return;
       setState(() {
-        _expanded = !acknowledged;
+        _visible = decision != 'accepted' && decision != 'rejected';
       });
     } catch (error, stackTrace) {
       FlutterError.reportError(
@@ -57,14 +57,14 @@ class _CookieNoticeState extends State<CookieNotice> {
     }
   }
 
-  Future<void> _acknowledgeNotice() async {
+  Future<void> _saveDecision(String decision) async {
     try {
       final preferences = await SharedPreferences.getInstance();
-      final saved = await preferences.setBool(_acknowledgedKey, true);
+      final saved = await preferences.setString(_decisionKey, decision);
       if (!saved) throw StateError('No se pudo guardar la preferencia.');
       if (!mounted) return;
       setState(() {
-        _expanded = false;
+        _visible = false;
         _errorMessage = null;
       });
     } catch (error, stackTrace) {
@@ -85,7 +85,6 @@ class _CookieNoticeState extends State<CookieNotice> {
   }
 
   void _openPolicy() {
-    setState(() => _expanded = false);
     widget.onOpenPolicy();
   }
 
@@ -95,10 +94,7 @@ class _CookieNoticeState extends State<CookieNotice> {
 
     return Stack(
       fit: StackFit.expand,
-      children: [
-        widget.child,
-        if (_expanded) _buildNotice(context) else _buildShortcut(context),
-      ],
+      children: [widget.child, if (_visible) _buildNotice(context)],
     );
   }
 
@@ -120,7 +116,7 @@ class _CookieNoticeState extends State<CookieNotice> {
                 builder: (context, constraints) {
                   final content = _buildMessage(context);
                   final actions = _buildActions(context);
-                  if (constraints.maxWidth < 620) {
+                  if (constraints.maxWidth < 760) {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       mainAxisSize: MainAxisSize.min,
@@ -193,34 +189,19 @@ class _CookieNoticeState extends State<CookieNotice> {
           onPressed: _openPolicy,
           child: const Text('Política de cookies'),
         ),
+        OutlinedButton(
+          onPressed: () => _saveDecision('rejected'),
+          child: const Text('Rechazar'),
+        ),
         FilledButton(
-          onPressed: _acknowledgeNotice,
+          onPressed: () => _saveDecision('accepted'),
           style: FilledButton.styleFrom(
             backgroundColor: ManoYaColors.primary,
             foregroundColor: Colors.white,
           ),
-          child: const Text('Entendido'),
+          child: const Text('Aceptar'),
         ),
       ],
-    );
-  }
-
-  Widget _buildShortcut(BuildContext context) {
-    return Positioned(
-      right: AppSpacing.md,
-      bottom: AppSpacing.md,
-      child: SafeArea(
-        child: Material(
-          color: Theme.of(context).colorScheme.surface,
-          elevation: 6,
-          borderRadius: BorderRadius.circular(24),
-          child: TextButton.icon(
-            onPressed: () => setState(() => _expanded = true),
-            icon: const Icon(Icons.cookie_outlined),
-            label: const Text('Cookies'),
-          ),
-        ),
-      ),
     );
   }
 }

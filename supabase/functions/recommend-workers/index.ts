@@ -15,6 +15,8 @@ interface WorkerListing {
   bio: string | null;
   phone: string | null;
   avatar_url: string | null;
+  latitude: number | null;
+  longitude: number | null;
   rating: number;
   reviews_count: number;
   status: string;
@@ -40,7 +42,7 @@ function response(
       ? configuredOrigin
       : ''
     : '*';
-  return new Response(JSON.stringify(payload), {
+  return new Response(status === 204 ? null : JSON.stringify(payload), {
     status,
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
@@ -117,26 +119,70 @@ function normalizeCity(value: unknown): string {
   return city;
 }
 
+function hasCoordinates(value: {
+  latitude: unknown;
+  longitude: unknown;
+}): value is { latitude: number; longitude: number } {
+  return (
+    typeof value.latitude === 'number' &&
+    Number.isFinite(value.latitude) &&
+    Math.abs(value.latitude) <= 90 &&
+    typeof value.longitude === 'number' &&
+    Number.isFinite(value.longitude) &&
+    Math.abs(value.longitude) <= 180
+  );
+}
+
+function distanceKm(
+  latitude: number,
+  longitude: number,
+  workerLatitude: number,
+  workerLongitude: number,
+): number {
+  const radians = (degrees: number) => degrees * Math.PI / 180;
+  const dLat = radians(workerLatitude - latitude);
+  const dLng = radians(workerLongitude - longitude);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(radians(latitude)) *
+      Math.cos(radians(workerLatitude)) *
+      Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 function rankWorkers(
   workers: WorkerListing[],
   intent: RecommendationIntent,
-  city: string,
-): WorkerListing[] {
+  latitude: number,
+  longitude: number,
+): Array<WorkerListing & { distance_km: number }> {
   const folded = (value: string) => value.trim().toLocaleLowerCase('es');
   const subcategory = folded(intent.subcategory);
-  const requestedCity = folded(city);
 
   return workers
     .filter(
-      (worker) =>
-        !subcategory || folded(worker.subcategory).includes(subcategory),
+      (worker): worker is WorkerListing & {
+        latitude: number;
+        longitude: number;
+      } =>
+        hasCoordinates(worker) &&
+        (!subcategory || folded(worker.subcategory).includes(subcategory)),
     )
+    .map((worker) => ({
+      ...worker,
+      distance_km: distanceKm(
+        latitude,
+        longitude,
+        worker.latitude,
+        worker.longitude,
+      ),
+    }))
     .sort((a, b) => {
-      const aCity = requestedCity && folded(a.city).includes(requestedCity);
-      const bCity = requestedCity && folded(b.city).includes(requestedCity);
-      if (aCity !== bCity) return aCity ? -1 : 1;
       if ((a.status === 'available') !== (b.status === 'available')) {
         return a.status === 'available' ? -1 : 1;
+      }
+      if (a.distance_km !== b.distance_km) {
+        return a.distance_km - b.distance_km;
       }
       return (
         b.rating - a.rating ||
@@ -231,6 +277,18 @@ Deno.serve(async (request: Request): Promise<Response> => {
     );
   }
   const city = normalizeCity(input['city']);
+  const coordinates = {
+    latitude: input['latitude'],
+    longitude: input['longitude'],
+  };
+  if (!city || !hasCoordinates(coordinates)) {
+    return jsonError(
+      400,
+      'Selecciona una ciudad o zona válida para calcular la distancia.',
+      origin,
+    );
+  }
+  const { latitude, longitude } = coordinates;
 
   try {
     const auth = await fetchJson(`${supabaseUrl}/auth/v1/user`, {
@@ -351,7 +409,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
     const workersUrl = new URL('/rest/v1/workers', supabaseUrl);
     workersUrl.searchParams.set(
       'select',
-      'id,name,category,subcategory,city,bio,phone,avatar_url,rating,reviews_count,status',
+      'id,name,category,subcategory,city,bio,phone,avatar_url,latitude,longitude,rating,reviews_count,status',
     );
     workersUrl.searchParams.set('profile_id', 'not.is.null');
     workersUrl.searchParams.set('category', `eq.${intent.category}`);
@@ -370,12 +428,17 @@ Deno.serve(async (request: Request): Promise<Response> => {
           (worker) => worker.category === intent.category,
         )
       : [];
-    const recommendations = rankWorkers(workers, intent, city).map((worker) => ({
+    const recommendations = rankWorkers(
+      workers,
+      intent,
+      latitude,
+      longitude,
+    ).map((worker) => ({
       ...worker,
       reason:
         worker.status === 'available'
-          ? `Coincide con ${worker.subcategory || worker.category} y figura disponible.`
-          : `Coincide con ${worker.subcategory || worker.category}; confirma su disponibilidad.`,
+          ? `A ${worker.distance_km.toFixed(1)} km; coincide con ${worker.subcategory || worker.category} y figura disponible.`
+          : `A ${worker.distance_km.toFixed(1)} km; coincide con ${worker.subcategory || worker.category}, pero debes confirmar su disponibilidad.`,
     }));
 
     return response(

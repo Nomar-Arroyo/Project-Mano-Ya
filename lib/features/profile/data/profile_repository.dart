@@ -1,4 +1,5 @@
 import '../../../core/services/supabase_service.dart';
+import '../../workers/data/workers_repository.dart';
 import '../domain/saved_address.dart';
 import '../domain/worker_profile.dart';
 
@@ -72,25 +73,42 @@ class ProfileRepository {
     String? avatarUrl,
   }) async {
     if (_isCurrentUser(userId)) {
-      try {
-        final data = await SupabaseService.client!
-            .from(profilesTable)
-            .select()
-            .eq('id', userId)
+      final client = SupabaseService.client!;
+      final data = await client
+          .from(profilesTable)
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
+      if (data != null) {
+        var profile = WorkerProfile.fromJson(data);
+        final listing = await client
+            .from(WorkersRepository.workersTable)
+            .select('category,subcategory,bio,latitude,longitude')
+            .eq('profile_id', userId)
             .maybeSingle();
-        if (data != null) {
-          final profile = WorkerProfile.fromJson(data);
-          return profile.copyWith(
-            displayName: profile.displayName.isEmpty
-                ? displayName
-                : profile.displayName,
-            phone: profile.phone ?? phone,
-            city: profile.city ?? city,
-            avatarUrl: profile.avatarUrl ?? avatarUrl,
+        if (listing != null) {
+          profile = profile.copyWith(
+            category: profile.category.isEmpty
+                ? listing['category']?.toString()
+                : profile.category,
+            subcategory: profile.subcategory.isEmpty
+                ? listing['subcategory']?.toString()
+                : profile.subcategory,
+            bio: profile.bio.isEmpty ? listing['bio']?.toString() : profile.bio,
+            latitude:
+                profile.latitude ?? (listing['latitude'] as num?)?.toDouble(),
+            longitude:
+                profile.longitude ?? (listing['longitude'] as num?)?.toDouble(),
           );
         }
-      } catch (_) {
-        // Sin tablas configuradas: se continúa con el modo mock.
+        return profile.copyWith(
+          displayName: profile.displayName.isEmpty
+              ? displayName
+              : profile.displayName,
+          phone: profile.phone ?? phone,
+          city: profile.city ?? city,
+          avatarUrl: profile.avatarUrl ?? avatarUrl,
+        );
       }
     }
 
@@ -109,13 +127,34 @@ class ProfileRepository {
   /// Guarda (o actualiza) el perfil extendido del trabajador.
   Future<void> saveWorkerProfile(WorkerProfile profile) async {
     if (_isCurrentUser(profile.ownerId)) {
-      try {
-        await SupabaseService.client!
-            .from(profilesTable)
-            .upsert(profile.toJson())
-            .eq('id', profile.ownerId);
-      } catch (_) {
-        // Si la tabla no existe, el cambio queda solo en memoria.
+      final client = SupabaseService.client!;
+      final data = Map<String, dynamic>.from(profile.toJson())..remove('id');
+      final updated = await client
+          .from(profilesTable)
+          .update(data)
+          .eq('id', profile.ownerId)
+          .select('id');
+      if (updated.isEmpty) {
+        throw StateError('No se pudo actualizar el perfil privado.');
+      }
+
+      if (client.auth.currentUser?.userMetadata?['role'] == 'worker' &&
+          profile.category.isNotEmpty &&
+          profile.subcategory.isNotEmpty &&
+          profile.city?.isNotEmpty == true) {
+        await WorkersRepository().upsertMyWorkerProfile(
+          profileId: profile.ownerId,
+          name: profile.displayName,
+          category: profile.category,
+          subcategory: profile.subcategory,
+          city: profile.city!,
+          phone: profile.phone,
+          bio: profile.bio,
+          avatarUrl: profile.avatarUrl,
+          latitude: profile.latitude,
+          longitude: profile.longitude,
+          status: profile.availableToday ? 'available' : 'busy',
+        );
       }
     }
     _mockProfiles[profile.ownerId] = profile;

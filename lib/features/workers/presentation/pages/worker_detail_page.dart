@@ -8,6 +8,7 @@ import '../../../auth/presentation/auth_provider.dart';
 import '../../../profile/presentation/profile_provider.dart';
 import '../../../requests/presentation/pages/request_form_page.dart';
 import '../../../shared/models/user_role.dart';
+import '../../data/worker_contact_service.dart';
 import '../../domain/worker.dart';
 import '../workers_provider.dart';
 
@@ -75,6 +76,14 @@ class _WorkerDetailBody extends ConsumerWidget {
 
   // Abre WhatsApp con un mensaje estructurado para contactar al trabajador.
   Future<void> _openWhatsApp(BuildContext context, WidgetRef ref) async {
+    String? emailError;
+    var emailSent = false;
+    try {
+      emailSent = await WorkerContactService.sendContactCard(worker);
+    } catch (error) {
+      emailError = error.toString().replaceFirst('Bad state: ', '');
+    }
+
     final clientName = ref.read(authStateProvider).displayName;
     final message = WhatsAppService.buildMessage(
       workerName: worker.name,
@@ -87,12 +96,16 @@ class _WorkerDetailBody extends ConsumerWidget {
       phone: worker.phone ?? '',
       message: message,
     );
-    if (!ok && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No se pudo abrir WhatsApp en este dispositivo'),
-        ),
-      );
+    if (context.mounted && (!ok || emailError != null || emailSent)) {
+      final messages = <String>[
+        if (emailSent) 'Enviamos la ficha a tu correo.',
+        if (emailError != null)
+          '$emailError ${ok ? '' : 'No se pudo abrir WhatsApp.'}',
+        if (!ok && emailError == null)
+          'No se pudo abrir WhatsApp en este dispositivo.',
+      ];
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(messages.join(' '))));
     }
   }
 

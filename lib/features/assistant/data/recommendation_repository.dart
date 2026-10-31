@@ -4,7 +4,9 @@ import '../domain/worker_recommendation.dart';
 class RecommendationRepository {
   Future<WorkerRecommendationResult> recommend({
     required String description,
-    String? city,
+    required String city,
+    required double latitude,
+    required double longitude,
   }) async {
     final client = SupabaseService.client;
     if (client == null || client.auth.currentSession == null) {
@@ -17,7 +19,9 @@ class RecommendationRepository {
       'recommend-workers',
       body: {
         'description': description.trim(),
-        if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
+        'city': city.trim(),
+        'latitude': latitude,
+        'longitude': longitude,
       },
     );
     return WorkerRecommendationResult.fromJson(response.data);

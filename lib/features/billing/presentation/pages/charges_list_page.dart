@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/colors.dart';
+import '../../../../core/services/supabase_service.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../auth/presentation/auth_provider.dart';
@@ -32,6 +33,7 @@ class _ChargesListPageState extends ConsumerState<ChargesListPage> {
   @override
   Widget build(BuildContext context) {
     final isWorker = ref.watch(authStateProvider).role == UserRole.worker;
+    final isDemo = SupabaseService.client == null || PaymentsDemoConfig.enabled;
     if (PaymentsDemoConfig.enabled && !isWorker) {
       return const PaymentsDemoListPage();
     }
@@ -65,7 +67,9 @@ class _ChargesListPageState extends ConsumerState<ChargesListPage> {
                   : 'Cuando te generen un cobro aparecerá aquí.',
             );
           }
-          if (isWorker) return _workerContent(context, ref, list);
+          if (isWorker) {
+            return _workerContent(context, ref, list, isDemo: isDemo);
+          }
 
           final total = list.fold<double>(0, (sum, c) => sum + c.total);
           final pending = list.fold<double>(
@@ -75,6 +79,7 @@ class _ChargesListPageState extends ConsumerState<ChargesListPage> {
 
           return Column(
             children: [
+              if (isDemo) _demoBanner,
               Padding(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.md,
@@ -129,8 +134,9 @@ class _ChargesListPageState extends ConsumerState<ChargesListPage> {
   Widget _workerContent(
     BuildContext context,
     WidgetRef ref,
-    List<Charge> charges,
-  ) {
+    List<Charge> charges, {
+    required bool isDemo,
+  }) {
     final received = charges.fold<double>(
       0,
       (sum, charge) => sum + charge.paidAmount,
@@ -171,30 +177,7 @@ class _ChargesListPageState extends ConsumerState<ChargesListPage> {
             ],
           ),
         ),
-        if (PaymentsDemoConfig.enabled)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.md,
-              AppSpacing.xs,
-              AppSpacing.md,
-              AppSpacing.sm,
-            ),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              decoration: BoxDecoration(
-                color: ManoYaColors.warning.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(AppRadius.md),
-                border: Border.all(
-                  color: ManoYaColors.warning.withValues(alpha: 0.4),
-                ),
-              ),
-              child: const Text(
-                'DEMO · Solicitudes y datos ficticios. No se mueve dinero.',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
+        if (isDemo) _demoBanner,
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
           child: Align(
@@ -241,6 +224,28 @@ class _ChargesListPageState extends ConsumerState<ChargesListPage> {
       ],
     );
   }
+
+  Widget get _demoBanner => Padding(
+    padding: const EdgeInsets.fromLTRB(
+      AppSpacing.md,
+      AppSpacing.xs,
+      AppSpacing.md,
+      AppSpacing.sm,
+    ),
+    child: Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: ManoYaColors.warning.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: ManoYaColors.warning.withValues(alpha: 0.4)),
+      ),
+      child: const Text(
+        'DEMO · Solicitudes y datos ficticios. No se mueve dinero.',
+        style: TextStyle(fontWeight: FontWeight.w600),
+      ),
+    ),
+  );
 
   bool _matchesWorkerFilter(Charge charge) => _workerFilter.matches(charge);
 }

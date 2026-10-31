@@ -54,12 +54,13 @@ class CookiePolicyPage extends StatelessWidget {
                             ),
                             const SizedBox(height: AppSpacing.sm),
                             Text(
-                              'La opción “Entendido” del aviso de cookies '
+                              'La decisión “Aceptar” o “Rechazar” del aviso '
                               'también se recuerda en el almacenamiento local '
-                              'para no mostrarlo en cada visita. Puedes borrar '
-                              'estos datos desde la configuración del navegador; '
-                              'al hacerlo, la aplicación puede cerrar tu sesión '
-                              'o volver a mostrar el aviso.',
+                              'para no mostrarlo en cada visita. Esta decisión '
+                              'no desactiva el almacenamiento técnico esencial. '
+                              'Puedes borrar estos datos desde la configuración '
+                              'del navegador; al hacerlo, la aplicación puede '
+                              'cerrar tu sesión o volver a mostrar el aviso.',
                               style: textStyle,
                             ),
                           ],

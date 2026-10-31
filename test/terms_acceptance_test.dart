@@ -28,7 +28,7 @@ void main() {
     expect(find.text('Uso de cookies y almacenamiento'), findsNothing);
   });
 
-  testWidgets('web cookie notice links to policy and saves acknowledgement', (
+  testWidgets('web cookie notice links to policy and saves a decision', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
@@ -53,17 +53,30 @@ void main() {
     expect(find.byType(CookiePolicyPage), findsOneWidget);
     expect(find.text('1. Tecnologías esenciales'), findsOneWidget);
 
-    await tester.pageBack();
+    router.pop();
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Cookies'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Entendido'));
+    await tester.tap(find.text('Aceptar'));
     await tester.pumpAndSettle();
     expect(find.text('Uso de cookies y almacenamiento'), findsNothing);
-    expect(find.text('Cookies'), findsOneWidget);
+    expect(find.text('Cookies'), findsNothing);
     final preferences = await SharedPreferences.getInstance();
-    expect(preferences.getBool('cookie_notice_acknowledged_v1'), isTrue);
+    expect(preferences.getString('cookie_consent_v2'), 'accepted');
 
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CookieNotice(
+          key: const ValueKey('rejection-notice'),
+          enabled: true,
+          child: const Scaffold(),
+          onOpenPolicy: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Uso de cookies y almacenamiento'), findsNothing);
+    expect(find.text('Cookies'), findsNothing);
+
+    SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(
       MaterialApp(
         home: CookieNotice(
@@ -74,8 +87,13 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Rechazar'));
+    await tester.pumpAndSettle();
     expect(find.text('Uso de cookies y almacenamiento'), findsNothing);
-    expect(find.text('Cookies'), findsOneWidget);
+    expect(
+      (await SharedPreferences.getInstance()).getString('cookie_consent_v2'),
+      'rejected',
+    );
 
     router.dispose();
   });
@@ -110,7 +128,7 @@ void main() {
     );
   });
 
-  testWidgets('login requires acceptance and can open the agreement', (
+  testWidgets('login does not repeat the terms acceptance prompt', (
     tester,
   ) async {
     final router = _authRouter(register: false);
@@ -120,46 +138,13 @@ void main() {
     await tester.pumpAndSettle();
 
     final loginButton = find.widgetWithText(ElevatedButton, 'Iniciar sesión');
-    expect(tester.widget<ElevatedButton>(loginButton).onPressed, isNull);
+    expect(tester.widget<ElevatedButton>(loginButton).onPressed, isNotNull);
     final googleButton = find.widgetWithText(
       OutlinedButton,
       'Continuar con Google (demo)',
     );
-    expect(tester.widget<OutlinedButton>(googleButton).onPressed, isNull);
-
-    await tester.ensureVisible(find.text('Términos y condiciones'));
-    await tester.tap(find.text('Términos y condiciones'));
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpAndSettle();
-    expect(find.text('Términos y condiciones'), findsOneWidget);
-    expect(
-      find.textContaining('INSTRUMENTO JURÍDICO VINCULANTE'),
-      findsOneWidget,
-    );
-    expect(
-      find.text('NATURALEZA CIVIL DEL VÍNCULO Y PRIMACÍA DE LA REALIDAD'),
-      findsOneWidget,
-    );
-    await tester.scrollUntilVisible(
-      find.text('CÓDIGO DE CONDUCTA Y RÉGIMEN SANCIONATORIO'),
-      250,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(
-      find.text('CÓDIGO DE CONDUCTA Y RÉGIMEN SANCIONATORIO'),
-      findsOneWidget,
-    );
-    expect(find.text('FUNDAMENTO LEGAL'), findsNWidgets(5));
-    await tester.scrollUntilVisible(
-      find.text('Arts. 1.167 y 1.630 del Código Civil'),
-      250,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(find.text('FUNDAMENTO LEGAL'), findsNWidgets(5));
-    expect(find.text('Arts. 1.167 y 1.630 del Código Civil'), findsOneWidget);
+    expect(tester.widget<OutlinedButton>(googleButton).onPressed, isNotNull);
+    expect(find.byType(Checkbox), findsNothing);
 
     router.dispose();
   });

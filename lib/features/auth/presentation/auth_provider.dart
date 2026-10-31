@@ -38,16 +38,10 @@ class AuthNotifier extends Notifier<AuthState> {
     String email,
     String password, {
     required UserRole role,
-    required bool acceptedTerms,
   }) async {
     state = const AuthState.loading();
     try {
-      state = await repo.loginEmailPassword(
-        email,
-        password,
-        role: role,
-        acceptedTerms: acceptedTerms,
-      );
+      state = await repo.loginEmailPassword(email, password, role: role);
       await _persist();
     } on AuthException catch (e) {
       state = AuthState.failure(e.message);
@@ -66,6 +60,11 @@ class AuthNotifier extends Notifier<AuthState> {
     required bool acceptedTerms,
     String? phone,
     String? city,
+    String? category,
+    String? subcategory,
+    String? bio,
+    double? latitude,
+    double? longitude,
   }) async {
     state = const AuthState.loading();
     try {
@@ -77,6 +76,11 @@ class AuthNotifier extends Notifier<AuthState> {
         acceptedTerms: acceptedTerms,
         phone: phone,
         city: city,
+        category: category,
+        subcategory: subcategory,
+        bio: bio,
+        latitude: latitude,
+        longitude: longitude,
       );
       await _persist();
       // La ficha del trabajador se crea en el catálogo de oficios.
@@ -86,6 +90,11 @@ class AuthNotifier extends Notifier<AuthState> {
           name: name,
           phone: phone,
           city: city,
+          category: category,
+          subcategory: subcategory,
+          bio: bio,
+          latitude: latitude,
+          longitude: longitude,
         );
       }
     } on AuthException catch (e) {
@@ -111,6 +120,11 @@ class AuthNotifier extends Notifier<AuthState> {
           name: state.displayName ?? '',
           phone: state.phone,
           city: state.city,
+          category: state.category,
+          subcategory: state.subcategory,
+          bio: state.bio,
+          latitude: state.latitude,
+          longitude: state.longitude,
         );
       }
     } on AuthException catch (e) {
@@ -142,14 +156,43 @@ class AuthNotifier extends Notifier<AuthState> {
   Future<void> signInWithGoogle(
     UserRole role, {
     required bool acceptedTerms,
+    required bool isRegistration,
+    String? phone,
+    String? city,
+    String? category,
+    String? subcategory,
+    String? bio,
+    double? latitude,
+    double? longitude,
   }) async {
     state = const AuthState.loading();
     try {
       state = await repo.signInWithGoogle(
         role: role,
         acceptedTerms: acceptedTerms,
+        isRegistration: isRegistration,
+        phone: phone,
+        city: city,
+        category: category,
+        subcategory: subcategory,
+        bio: bio,
+        latitude: latitude,
+        longitude: longitude,
       );
       await _persist();
+      if (isRegistration && role == UserRole.worker && state.isAuthenticated) {
+        await WorkerRegistrationService.registerAfterSignUp(
+          userId: state.userId ?? '',
+          name: state.displayName ?? '',
+          phone: state.phone,
+          city: state.city,
+          category: state.category,
+          subcategory: state.subcategory,
+          bio: state.bio,
+          latitude: state.latitude,
+          longitude: state.longitude,
+        );
+      }
     } on AuthException catch (e) {
       state = AuthState.failure(e.message);
     } catch (_) {
@@ -167,6 +210,14 @@ class AuthNotifier extends Notifier<AuthState> {
     String idToken, {
     required UserRole role,
     required bool acceptedTerms,
+    required bool isRegistration,
+    String? phone,
+    String? city,
+    String? category,
+    String? subcategory,
+    String? bio,
+    double? latitude,
+    double? longitude,
     String? displayName,
   }) async {
     state = const AuthState.loading();
@@ -175,9 +226,30 @@ class AuthNotifier extends Notifier<AuthState> {
         idToken,
         role: role,
         acceptedTerms: acceptedTerms,
+        isRegistration: isRegistration,
+        phone: phone,
+        city: city,
+        category: category,
+        subcategory: subcategory,
+        bio: bio,
+        latitude: latitude,
+        longitude: longitude,
         displayName: displayName,
       );
       await _persist();
+      if (isRegistration && role == UserRole.worker && state.isAuthenticated) {
+        await WorkerRegistrationService.registerAfterSignUp(
+          userId: state.userId ?? '',
+          name: state.displayName ?? '',
+          phone: state.phone,
+          city: state.city,
+          category: state.category,
+          subcategory: state.subcategory,
+          bio: state.bio,
+          latitude: state.latitude,
+          longitude: state.longitude,
+        );
+      }
     } on AuthException catch (e) {
       state = AuthState.failure(e.message);
     } catch (_) {

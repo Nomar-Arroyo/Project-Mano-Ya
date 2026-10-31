@@ -5,7 +5,10 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/services/whatsapp_service.dart';
 import '../../../auth/presentation/auth_provider.dart';
 import '../../../requests/presentation/pages/request_form_page.dart';
+import '../../domain/worker_categories.dart';
 import '../../../shared/widgets/city_autocomplete_field.dart';
+import '../../../shared/widgets/async_state_views.dart';
+import '../../data/worker_contact_service.dart';
 import '../../domain/worker.dart';
 import '../workers_provider.dart';
 import '../widgets/worker_card.dart';
@@ -16,15 +19,6 @@ class WorkersCatalogPage extends ConsumerWidget {
   const WorkersCatalogPage({super.key});
 
   /// Categorías principales de oficios de Mano Ya.
-  static const List<String> categories = [
-    'Construcción',
-    'Belleza',
-    'Costura',
-    'Mantenimiento',
-    'Automotriz',
-    'Eventos',
-  ];
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final filter = ref.watch(workersFilterProvider);
@@ -79,10 +73,10 @@ class WorkersCatalogPage extends ConsumerWidget {
               height: 48,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                itemCount: categories.length,
+                itemCount: WorkerCategories.categories.length,
                 separatorBuilder: (context, index) => const SizedBox(width: 8),
                 itemBuilder: (context, index) {
-                  final cat = categories[index];
+                  final cat = WorkerCategories.categories[index];
                   final selected = filter.category == cat;
                   return ChoiceChip(
                     label: Text(cat),
@@ -97,8 +91,12 @@ class WorkersCatalogPage extends ConsumerWidget {
             Expanded(
               child: workersAsync.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
-                error: (error, stackTrace) =>
-                    const Center(child: Text('Error al cargar trabajadores')),
+                error: (error, stackTrace) => ErrorView(
+                  message:
+                      'No se pudo cargar el catálogo. Revisa tu conexión '
+                      'e inténtalo de nuevo.',
+                  onRetry: () => ref.invalidate(workersListProvider),
+                ),
                 data: (list) {
                   if (list.isEmpty) {
                     return const Center(
@@ -148,6 +146,14 @@ class WorkersCatalogPage extends ConsumerWidget {
     WidgetRef ref,
     Worker worker,
   ) async {
+    String? emailError;
+    var emailSent = false;
+    try {
+      emailSent = await WorkerContactService.sendContactCard(worker);
+    } catch (error) {
+      emailError = error.toString().replaceFirst('Bad state: ', '');
+    }
+
     final clientName = ref.read(authStateProvider).displayName;
     final message = WhatsAppService.buildMessage(
       workerName: worker.name,
@@ -160,12 +166,16 @@ class WorkersCatalogPage extends ConsumerWidget {
       phone: worker.phone ?? '',
       message: message,
     );
-    if (!ok && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No se pudo abrir WhatsApp en este dispositivo'),
-        ),
-      );
+    if (context.mounted && (!ok || emailError != null || emailSent)) {
+      final messages = <String>[
+        if (emailSent) 'Enviamos la ficha a tu correo.',
+        if (emailError != null)
+          '$emailError ${ok ? '' : 'No se pudo abrir WhatsApp.'}',
+        if (!ok && emailError == null)
+          'No se pudo abrir WhatsApp en este dispositivo.',
+      ];
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(messages.join(' '))));
     }
   }
 }

@@ -1,25 +1,85 @@
 import 'package:uuid/uuid.dart';
 
+import '../../../core/services/supabase_service.dart';
+import '../domain/billable_job.dart';
 import '../domain/charge.dart';
 
-/// Repositorio de cobros (datos en memoria hasta integrar Supabase).
-///
-/// Mantiene la lista de solicitudes de cobro durante la sesión y expone las
-/// operaciones del flujo de pago: crear, notificar pago (cliente) y confirmar
-/// pago recibido (trabajador), además del manejo de cuotas/hitos.
 class BillingRepository {
   final List<Charge> _charges = _seed();
 
-  /// Lista todas las solicitudes de cobro (más recientes primero).
+  static const _billableStatuses = {'accepted', 'in_progress', 'completed'};
+
+  static const _demoJobs = [
+    BillableJob(
+      id: 'demo-job-1',
+      title: 'Reparación de baño',
+      clientId: 'demo-client-1',
+      clientName: 'Cliente de demostración',
+      workerId: 'demo-worker-1',
+      workerName: 'Trabajador de demostración',
+      price: 1200,
+      status: 'in_progress',
+    ),
+  ];
+
   Future<List<Charge>> list() async {
+    final client = SupabaseService.client;
+    if (client != null) {
+      if (client.auth.currentUser == null) {
+        throw StateError('Inicia sesión para consultar tus cobros.');
+      }
+      final rows = await client
+          .from('charges')
+          .select('*, installments(*)')
+          .order('created_at', ascending: false);
+      return rows
+          .map((row) => Charge.fromJson(Map<String, dynamic>.from(row)))
+          .toList();
+    }
+
     await Future.delayed(const Duration(milliseconds: 300));
     final copy = List<Charge>.from(_charges);
     copy.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return copy;
   }
 
-  /// Busca un cobro por su id.
+  Future<List<BillableJob>> listBillableJobs() async {
+    final client = SupabaseService.client;
+    if (client == null) return _demoJobs;
+    final user = client.auth.currentUser;
+    if (user == null) {
+      throw StateError('Inicia sesión para seleccionar un trabajo.');
+    }
+
+    final rows = await client
+        .from('jobs')
+        .select(
+          'id,title,client_id,client_name,worker_id,worker_name,price,status',
+        )
+        .eq('worker_id', user.id)
+        .order('created_at', ascending: false);
+    return rows
+        .map((row) => BillableJob.fromJson(Map<String, dynamic>.from(row)))
+        .where((job) => _billableStatuses.contains(job.status))
+        .toList();
+  }
+
   Future<Charge?> getById(String id) async {
+    final client = SupabaseService.client;
+    if (client != null) {
+      if (client.auth.currentUser == null) {
+        throw StateError('Inicia sesión para consultar este cobro.');
+      }
+      final row = await client
+          .from('charges')
+          .select('*, installments(*)')
+          .eq('id', id)
+          .maybeSingle();
+      return row == null
+          ? null
+          : Charge.fromJson(Map<String, dynamic>.from(row));
+    }
+
     await Future.delayed(const Duration(milliseconds: 200));
     for (final charge in _charges) {
       if (charge.id == id) return charge;
@@ -27,25 +87,54 @@ class BillingRepository {
     return null;
   }
 
-  /// Crea una nueva solicitud de cobro con su plan de cuotas.
   Future<Charge> create({
+    required String jobId,
     required String concept,
-    required String workerName,
-    required String clientName,
     required double total,
     required String bankInfo,
-    String? clientEmail,
     int installmentCount = 1,
     int spacingDays = 30,
   }) async {
+    final client = SupabaseService.client;
+    if (client != null) {
+      if (client.auth.currentUser == null) {
+        throw StateError('Inicia sesión para crear una solicitud de cobro.');
+      }
+      final id = await client.rpc(
+        'create_charge_with_installments',
+        params: {
+          'p_job_id': jobId,
+          'p_concept': concept.trim(),
+          'p_total': total,
+          'p_bank_info': bankInfo.trim(),
+          'p_installment_count': installmentCount,
+          'p_spacing_days': spacingDays,
+        },
+      );
+      if (id is! String || id.isEmpty) {
+        throw const FormatException(
+          'Supabase no devolvió el identificador del cobro.',
+        );
+      }
+      final charge = await getById(id);
+      if (charge == null) {
+        throw StateError('No se pudo volver a leer el cobro recién creado.');
+      }
+      return charge;
+    }
+
     await Future.delayed(const Duration(milliseconds: 400));
+    final job = _demoJobs.where((item) => item.id == jobId);
+    if (job.isEmpty) {
+      throw StateError('Selecciona un trabajo válido para crear el cobro.');
+    }
     final now = DateTime.now();
     final charge = Charge(
       id: const Uuid().v4().substring(0, 8),
+      jobId: jobId,
       concept: concept,
-      workerName: workerName,
-      clientName: clientName,
-      clientEmail: clientEmail,
+      workerName: job.first.workerName,
+      clientName: job.first.clientName,
       total: total,
       bankInfo: bankInfo,
       createdAt: now,
@@ -61,27 +150,62 @@ class BillingRepository {
     return charge;
   }
 
-  /// El cliente notifica que realizó el pago.
   Future<Charge> notifyPayment(String id) async {
+    final client = SupabaseService.client;
+    if (client != null) {
+      if (client.auth.currentUser == null) {
+        throw StateError('Inicia sesión para notificar el pago.');
+      }
+      await client.rpc('notify_charge_payment', params: {'p_charge_id': id});
+      final updated = await getById(id);
+      if (updated == null) {
+        throw StateError('No se pudo volver a leer el cobro actualizado.');
+      }
+      return updated;
+    }
+
     await Future.delayed(const Duration(milliseconds: 300));
     return _update(id, (charge) {
+      if (charge.status != ChargeStatus.pending || charge.pendingAmount <= 0) {
+        throw StateError('Este cobro no está pendiente de notificación.');
+      }
       return charge.copyWith(status: ChargeStatus.clientNotified);
     });
   }
 
-  /// El trabajador confirma el pago recibido. Marca todas las cuotas como
-  /// pagadas y deja el trabajo en estado "Pagado / Completado".
-  Future<Charge> confirmPayment(String id, {String? receiptPath}) async {
+  Future<Charge> confirmPayment(String id) async {
+    final client = SupabaseService.client;
+    if (client != null) {
+      if (client.auth.currentUser == null) {
+        throw StateError('Inicia sesión para confirmar el pago recibido.');
+      }
+      await client.rpc('confirm_charge_payment', params: {'p_charge_id': id});
+      final updated = await getById(id);
+      if (updated == null) {
+        throw StateError('No se pudo volver a leer el cobro actualizado.');
+      }
+      return updated;
+    }
+
     await Future.delayed(const Duration(milliseconds: 400));
     return _update(id, (charge) {
-      final paidInstallments = charge.installments
-          .map((i) => i.copyWith(paid: true))
-          .toList();
+      if (charge.status != ChargeStatus.clientNotified) {
+        throw StateError('El cliente aún no ha reportado el pago.');
+      }
+      final nextIndex = charge.installments.indexWhere((item) => !item.paid);
+      if (nextIndex == -1) {
+        throw StateError('No quedan cuotas pendientes por confirmar.');
+      }
+      final paidInstallments = List<Installment>.from(charge.installments);
+      paidInstallments[nextIndex] = paidInstallments[nextIndex].copyWith(
+        paid: true,
+      );
+      final completed = paidInstallments.every((item) => item.paid);
       return charge.copyWith(
-        status: ChargeStatus.paid,
+        status: completed ? ChargeStatus.paid : ChargeStatus.pending,
         installments: paidInstallments,
-        receiptPath: receiptPath,
-        paidAt: DateTime.now(),
+        paidAt: completed ? DateTime.now() : null,
+        clearPaidAt: !completed,
       );
     });
   }

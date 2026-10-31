@@ -12,6 +12,7 @@ import '../../../shared/widgets/async_state_views.dart';
 import '../../../shared/widgets/city_autocomplete_field.dart';
 import '../../../shared/widgets/or_divider.dart';
 import '../../../shared/models/user_role.dart';
+import '../../../workers/domain/worker_categories.dart';
 import '../../domain/auth_state.dart';
 import '../auth_provider.dart';
 import '../widgets/auth_scaffold.dart';
@@ -32,7 +33,13 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
+  final _bioCtrl = TextEditingController();
   String? _cityName;
+  String? _locationError;
+  String? _category;
+  String? _subcategory;
+  double? _latitude;
+  double? _longitude;
   UserRole _role = UserRole.client;
   bool _acceptedTerms = false;
 
@@ -42,12 +49,23 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     _emailCtrl.dispose();
     _passCtrl.dispose();
     _phoneCtrl.dispose();
+    _bioCtrl.dispose();
     super.dispose();
   }
 
   void _submit() {
     FocusScope.of(context).unfocus();
     if (!_acceptedTerms) return;
+    if (_role == UserRole.worker &&
+        (_cityName?.isNotEmpty != true ||
+            _latitude == null ||
+            _longitude == null)) {
+      setState(() {
+        _locationError =
+            'Selecciona una zona de la lista para publicar tu perfil.';
+      });
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
     ref
         .read(authStateProvider.notifier)
@@ -61,6 +79,11 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             _phoneCtrl.text,
           ),
           city: _cityName,
+          category: _role == UserRole.worker ? _category : null,
+          subcategory: _role == UserRole.worker ? _subcategory : null,
+          latitude: _role == UserRole.worker ? _latitude : null,
+          longitude: _role == UserRole.worker ? _longitude : null,
+          bio: _role == UserRole.worker ? _bioCtrl.text.trim() : null,
         );
   }
 
@@ -153,11 +176,91 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             CityAutocompleteField(
               label: 'Ciudad/Zona',
               initialText: _cityName,
-              onSelected: (place) => _cityName = place.displayName,
-              onCleared: () => _cityName = null,
+              onChanged: (value) => setState(() {
+                _cityName = value;
+                _latitude = null;
+                _longitude = null;
+                _locationError = null;
+              }),
+              onSelected: (place) {
+                setState(() {
+                  _cityName = place.displayName;
+                  _latitude = place.latitude;
+                  _longitude = place.longitude;
+                  _locationError = null;
+                });
+              },
+              onCleared: () {
+                setState(() {
+                  _cityName = null;
+                  _latitude = null;
+                  _longitude = null;
+                });
+              },
             ),
+            if (_locationError != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                _locationError!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
             if (_role == UserRole.worker) ...[
               const SizedBox(height: AppSpacing.md),
+              DropdownButtonFormField<String>(
+                initialValue: _category,
+                decoration: const InputDecoration(
+                  labelText: 'Oficio principal',
+                ),
+                items: WorkerCategories.categories
+                    .map(
+                      (category) => DropdownMenuItem(
+                        value: category,
+                        child: Text(category),
+                      ),
+                    )
+                    .toList(),
+                validator: (value) =>
+                    value == null ? 'Selecciona tu oficio principal' : null,
+                onChanged: (value) => setState(() {
+                  _category = value;
+                  _subcategory = null;
+                }),
+              ),
+              if (_category != null) ...[
+                const SizedBox(height: AppSpacing.md),
+                DropdownButtonFormField<String>(
+                  initialValue: _subcategory,
+                  decoration: const InputDecoration(labelText: 'Especialidad'),
+                  items: WorkerCategories.subcategories[_category]!
+                      .map(
+                        (subcategory) => DropdownMenuItem(
+                          value: subcategory,
+                          child: Text(subcategory),
+                        ),
+                      )
+                      .toList(),
+                  validator: (value) =>
+                      value == null ? 'Selecciona tu especialidad' : null,
+                  onChanged: (value) => setState(() => _subcategory = value),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.md),
+              TextFormField(
+                controller: _bioCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Descripción de tu oficio',
+                  hintText: 'Experiencia, especialidad y tipo de trabajos que realizas',
+                  prefixIcon: Icon(Icons.construction_outlined),
+                  alignLabelWithHint: true,
+                ),
+                maxLines: 3,
+                maxLength: 240,
+                enabled: !state.loading,
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? 'Describe brevemente tu oficio'
+                    : null,
+              ),
               const _WorkerInfoCard(),
             ],
             if (state.errorMessage != null) ...[
@@ -194,6 +297,16 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
               role: _role,
               label: 'Registrarme con Google',
               termsAccepted: _acceptedTerms,
+              isRegistration: true,
+              phone: VenezuelanPhoneInputFormatter.formatInternational(
+                _phoneCtrl.text,
+              ),
+              city: _cityName,
+              category: _category,
+              subcategory: _subcategory,
+              latitude: _latitude,
+              longitude: _longitude,
+              bio: _bioCtrl.text.trim(),
             ),
           ],
         ),
@@ -241,8 +354,8 @@ class _WorkerInfoCard extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                  'Elige tu oficio y zona desde tu perfil. Podrás activar tu '
-                  'disponibilidad y recibir solicitudes de clientes cercanos.',
+                  'Tu oficio, especialidad y zona seleccionada alimentan el '
+                  'catálogo para que clientes cercanos puedan encontrarte.',
                   style: TextStyle(fontSize: 13, color: ManoYaColors.muted),
                 ),
               ],

@@ -41,6 +41,7 @@ class _CityAutocompleteFieldState extends State<CityAutocompleteField> {
   Timer? _debounce;
   List<Place> _suggestions = const [];
   bool _loading = false;
+  String? _errorMessage;
   int _requestId = 0;
 
   // Evita relanzar la búsqueda cuando cambiamos el texto por código.
@@ -85,15 +86,34 @@ class _CityAutocompleteFieldState extends State<CityAutocompleteField> {
 
   Future<void> _search(String text) async {
     final id = ++_requestId;
-    setState(() => _loading = true);
-    final results = await MapsService.autocomplete(text);
-    if (!mounted || id != _requestId) return;
     setState(() {
-      _suggestions = results;
-      _loading = false;
+      _loading = true;
+      _errorMessage = null;
     });
-    if (results.isNotEmpty && !_overlayController.isShowing) {
-      _overlayController.show();
+    try {
+      final results = await MapsService.autocomplete(text);
+      if (!mounted || id != _requestId) return;
+      setState(() {
+        _suggestions = results;
+        _loading = false;
+      });
+      if (results.isNotEmpty && !_overlayController.isShowing) {
+        _overlayController.show();
+      }
+    } catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'city autocomplete',
+          context: ErrorDescription('while searching for a city or zone'),
+        ),
+      );
+      if (!mounted || id != _requestId) return;
+      setState(() {
+        _loading = false;
+        _errorMessage = 'No se pudo buscar la zona. Inténtalo nuevamente.';
+      });
     }
   }
 
@@ -131,7 +151,8 @@ class _CityAutocompleteFieldState extends State<CityAutocompleteField> {
                 labelText: widget.label,
                 hintText:
                     widget.hintText ?? 'Escribe ciudad, parroquia o sector',
-                helperText: widget.helperText,
+                helperText: _errorMessage == null ? widget.helperText : null,
+                errorText: _errorMessage,
                 suffixIcon: _loading
                     ? const Padding(
                         padding: EdgeInsets.all(12),

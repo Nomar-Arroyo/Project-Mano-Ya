@@ -106,6 +106,36 @@ class ProfileController extends AsyncNotifier<void> {
     });
   }
 
+  /// Guarda y sincroniza los datos visibles del trabajador en catálogo.
+  Future<void> saveWorkerDetails({
+    required String bio,
+    required String category,
+    required String subcategory,
+    double? latitude,
+    double? longitude,
+  }) async {
+    state = const AsyncLoading();
+    try {
+      final userId = ref.read(currentUserIdProvider);
+      final repository = ref.read(profileRepositoryProvider);
+      final profile = await repository.loadWorkerProfile(userId: userId);
+      await repository.saveWorkerProfile(
+        profile.copyWith(
+          bio: bio,
+          category: category,
+          subcategory: subcategory,
+          latitude: latitude,
+          longitude: longitude,
+        ),
+      );
+      ref.invalidate(workerProfileProvider);
+      state = const AsyncData(null);
+    } catch (error, stackTrace) {
+      state = AsyncError(error, stackTrace);
+      rethrow;
+    }
+  }
+
   /// Agrega una foto al portafolio del trabajador.
   Future<void> addPortfolioImage({
     required String imageUrl,

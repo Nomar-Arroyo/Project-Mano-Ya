@@ -4,9 +4,11 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/colors.dart';
+import '../../../../core/services/maps_service.dart';
 import '../../../../core/services/whatsapp_service.dart';
 import '../../../auth/presentation/auth_provider.dart';
 import '../../../requests/presentation/pages/request_form_page.dart';
+import '../../../shared/widgets/city_autocomplete_field.dart';
 import '../../../shared/models/user_role.dart';
 import '../../data/recommendation_repository.dart';
 import '../../domain/worker_recommendation.dart';
@@ -22,9 +24,10 @@ class RecommendWorkersPage extends ConsumerStatefulWidget {
 class _RecommendWorkersPageState extends ConsumerState<RecommendWorkersPage> {
   final _formKey = GlobalKey<FormState>();
   final _descriptionController = TextEditingController();
-  final _cityController = TextEditingController();
   final _repository = RecommendationRepository();
 
+  String? _cityName;
+  Place? _origin;
   WorkerRecommendationResult? _result;
   String? _errorMessage;
   bool _loading = false;
@@ -32,7 +35,6 @@ class _RecommendWorkersPageState extends ConsumerState<RecommendWorkersPage> {
   @override
   void dispose() {
     _descriptionController.dispose();
-    _cityController.dispose();
     super.dispose();
   }
 
@@ -81,14 +83,24 @@ class _RecommendWorkersPageState extends ConsumerState<RecommendWorkersPage> {
                   },
                 ),
                 const SizedBox(height: 8),
-                TextFormField(
-                  controller: _cityController,
-                  maxLength: 100,
-                  textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(
-                    labelText: 'Ciudad o zona (opcional)',
-                    border: OutlineInputBorder(),
-                  ),
+                CityAutocompleteField(
+                  label: 'Ciudad o zona',
+                  helperText:
+                      'Selecciona una sugerencia para calcular distancia.',
+                  initialText: _cityName,
+                  onSelected: (place) => setState(() {
+                    _cityName = place.displayName;
+                    _origin = place;
+                    _errorMessage = null;
+                  }),
+                  onChanged: (value) => setState(() {
+                    _cityName = value;
+                    _origin = null;
+                  }),
+                  onCleared: () => setState(() {
+                    _cityName = null;
+                    _origin = null;
+                  }),
                 ),
                 const SizedBox(height: 8),
                 FilledButton.icon(
@@ -154,6 +166,17 @@ class _RecommendWorkersPageState extends ConsumerState<RecommendWorkersPage> {
 
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
+    final origin = _origin;
+    final city = _cityName;
+    if (origin == null || city == null) {
+      setState(() {
+        _errorMessage =
+            'Selecciona una ciudad o zona de la lista para calcular la '
+            'distancia real de los trabajadores.';
+        _result = null;
+      });
+      return;
+    }
     final auth = ref.read(authStateProvider);
     if (!auth.isAuthenticated) {
       setState(() {
@@ -180,7 +203,9 @@ class _RecommendWorkersPageState extends ConsumerState<RecommendWorkersPage> {
     try {
       final result = await _repository.recommend(
         description: _descriptionController.text,
-        city: _cityController.text,
+        city: city,
+        latitude: origin.latitude,
+        longitude: origin.longitude,
       );
       if (!mounted) return;
       setState(() => _result = result);

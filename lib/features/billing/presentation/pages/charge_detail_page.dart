@@ -33,71 +33,111 @@ class ChargeDetailPage extends ConsumerStatefulWidget {
 class _ChargeDetailPageState extends ConsumerState<ChargeDetailPage> {
   bool _busy = false;
 
-  /// Correo de respaldo cuando el cobro no tiene correo del cliente.
-  static const String _fallbackEmail = 'cliente@manoya.app';
-
   /// El cliente notifica que ya realizó el pago.
   Future<void> _notifyPayment() async {
     setState(() => _busy = true);
-    await ref.read(billingRepositoryProvider).notifyPayment(widget.chargeId);
-    ref.invalidate(chargeByIdProvider(widget.chargeId));
-    ref.invalidate(chargesListProvider);
-    if (!mounted) return;
-    setState(() => _busy = false);
-    _showMessage('Pago notificado. Esperando confirmación del trabajador.');
+    try {
+      await ref.read(billingRepositoryProvider).notifyPayment(widget.chargeId);
+      ref.invalidate(chargeByIdProvider(widget.chargeId));
+      ref.invalidate(chargesListProvider);
+      if (mounted) {
+        _showMessage('Pago notificado. Esperando confirmación del trabajador.');
+      }
+    } catch (error) {
+      if (mounted) _showMessage('No se pudo notificar el pago: $error');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   /// El trabajador confirma el pago: genera el recibo y lo envía por email.
   Future<void> _confirmPayment(Charge charge) async {
     setState(() => _busy = true);
-    final file = await _generateReceipt(charge, sealed: true);
-    await ref
-        .read(billingRepositoryProvider)
-        .confirmPayment(widget.chargeId, receiptPath: file.path);
-    ref.invalidate(chargeByIdProvider(widget.chargeId));
-    ref.invalidate(chargesListProvider);
+    try {
+      final repository = ref.read(billingRepositoryProvider);
+      final updated = await repository.confirmPayment(widget.chargeId);
+      ref.invalidate(chargeByIdProvider(widget.chargeId));
+      ref.invalidate(chargesListProvider);
 
-    final sent = await _emailReceipt(charge, file.path);
-    if (!mounted) return;
-    setState(() => _busy = false);
-    _showMessage(
-      sent
-          ? 'Pago confirmado. Recibo enviado a '
-                '${charge.clientEmail ?? _fallbackEmail}'
-          : 'Pago confirmado. No se pudo enviar el recibo por correo.',
-    );
-    await _openReceipt(file.path);
+      late final File file;
+      try {
+        file = await _generateReceipt(
+          updated,
+          sealed: updated.status == ChargeStatus.paid,
+        );
+      } catch (error) {
+        if (mounted) {
+          _showMessage(
+            'Pago confirmado, pero no se pudo generar el recibo: $error',
+          );
+        }
+        return;
+      }
+
+      final sent = await _emailReceipt(updated, file.path);
+      if (!mounted) return;
+      _showMessage(
+        updated.status == ChargeStatus.paid
+            ? sent
+                  ? 'Pago total confirmado. Recibo enviado a '
+                        '${updated.clientEmail}'
+                  : 'Pago total confirmado. ${_receiptEmailFailure(updated)}'
+            : sent
+            ? 'Abono confirmado. Restan '
+                  '${Formatters.currency(updated.pendingAmount)}. Recibo enviado.'
+            : 'Abono confirmado. Restan '
+                  '${Formatters.currency(updated.pendingAmount)}. '
+                  '${_receiptEmailFailure(updated)}',
+      );
+      await _openReceipt(file.path);
+    } catch (error) {
+      if (mounted) _showMessage('No se pudo confirmar el pago: $error');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   /// Reenvía por email el recibo de un cobro ya pagado.
   Future<void> _sendReceiptEmail(Charge charge) async {
     setState(() => _busy = true);
-    final file = await _generateReceipt(charge, sealed: true);
-    final sent = await _emailReceipt(charge, file.path);
-    if (!mounted) return;
-    setState(() => _busy = false);
-    _showMessage(
-      sent
-          ? 'Recibo enviado a ${charge.clientEmail ?? _fallbackEmail}'
-          : 'No se pudo enviar el recibo por correo',
-    );
+    try {
+      final file = await _generateReceipt(charge, sealed: true);
+      final sent = await _emailReceipt(charge, file.path);
+      if (!mounted) return;
+      _showMessage(
+        sent
+            ? 'Recibo enviado a ${charge.clientEmail}'
+            : _receiptEmailFailure(charge),
+      );
+    } catch (error) {
+      if (mounted) _showMessage('No se pudo enviar el recibo: $error');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   /// Envía el recibo (PDF adjunto) al correo del cliente.
   Future<bool> _emailReceipt(Charge charge, String path) {
-    final to = charge.clientEmail ?? _fallbackEmail;
+    final to = charge.clientEmail?.trim();
+    if (to == null || to.isEmpty) return Future.value(false);
     return EmailService.sendReport(
       to: to,
       subject: 'Recibo de pago · ${charge.concept}',
       body:
           'Hola ${charge.clientName},\n\n'
-          'Adjuntamos el recibo del trabajo "${charge.concept}" por un total '
-          'de ${Formatters.currency(charge.total)}.\n\n'
+          'Adjuntamos el recibo del trabajo "${charge.concept}" por '
+          '${Formatters.currency(charge.paidAmount)} de '
+          '${Formatters.currency(charge.total)}.\n\n'
           'Gracias por usar Mano Ya.\n'
           'Tus oficios a la mano.',
       attachmentPath: path,
     );
   }
+
+  String _receiptEmailFailure(Charge charge) =>
+      charge.clientEmail == null || charge.clientEmail!.trim().isEmpty
+      ? 'El cliente no tiene un correo registrado.'
+      : 'No se pudo enviar el recibo por correo.';
 
   /// Genera (o regenera) el recibo PDF del cobro.
   Future<File> _generateReceipt(Charge charge, {required bool sealed}) async {
@@ -286,10 +326,16 @@ class _ChargeDetailPageState extends ConsumerState<ChargeDetailPage> {
             loading: _busy,
             onPressed: () async {
               setState(() => _busy = true);
-              final file = await _generateReceipt(charge, sealed: true);
-              if (!mounted) return;
-              setState(() => _busy = false);
-              await _openReceipt(file.path);
+              try {
+                final file = await _generateReceipt(charge, sealed: true);
+                if (mounted) await _openReceipt(file.path);
+              } catch (error) {
+                if (mounted) {
+                  _showMessage('No se pudo generar el recibo: $error');
+                }
+              } finally {
+                if (mounted) setState(() => _busy = false);
+              }
             },
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -322,6 +368,14 @@ class _ChargeDetailPageState extends ConsumerState<ChargeDetailPage> {
             variant: AppButtonVariant.secondary,
             loading: _busy,
             onPressed: () => _confirmPayment(charge),
+          ),
+        ],
+        if (!isPaid && isWorker && charge.status == ChargeStatus.pending) ...[
+          AppButton(
+            label: 'El cliente aún no ha reportado el pago',
+            icon: Icons.hourglass_empty,
+            variant: AppButtonVariant.outline,
+            onPressed: null,
           ),
         ],
       ],

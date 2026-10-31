@@ -8,7 +8,9 @@ class WorkerRecommendation {
 
   factory WorkerRecommendation.fromJson(Object? value) {
     if (value is! Map<String, dynamic>) {
-      throw const FormatException('La recomendación no tiene un formato válido.');
+      throw const FormatException(
+        'La recomendación no tiene un formato válido.',
+      );
     }
 
     final id = _requiredString(value, 'id');
@@ -35,6 +37,8 @@ class WorkerRecommendation {
         avatarUrl: _nullableString(value, 'avatar_url'),
         phone: _nullableString(value, 'phone'),
         bio: _nullableString(value, 'bio'),
+        latitude: _nullableNumber(value, 'latitude'),
+        longitude: _nullableNumber(value, 'longitude'),
       ),
       reason: reason,
     );
@@ -104,6 +108,11 @@ String _string(Map<String, dynamic> value, String key) {
 String? _nullableString(Map<String, dynamic> value, String key) {
   final result = _string(value, key);
   return result.isEmpty ? null : result;
+}
+
+double? _nullableNumber(Map<String, dynamic> value, String key) {
+  final item = value[key];
+  return item is num ? item.toDouble() : null;
 }
 
 double _number(Map<String, dynamic> value, String key) {

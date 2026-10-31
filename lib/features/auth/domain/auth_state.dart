@@ -8,6 +8,11 @@ class AuthState {
   final UserRole? role;
   final String? phone;
   final String? city;
+  final String? category;
+  final String? subcategory;
+  final String? bio;
+  final double? latitude;
+  final double? longitude;
   final String? avatarUrl;
   final String? termsVersion;
   final bool twoFactorEnabled;
@@ -25,6 +30,11 @@ class AuthState {
     this.role,
     this.phone,
     this.city,
+    this.category,
+    this.subcategory,
+    this.bio,
+    this.latitude,
+    this.longitude,
     this.avatarUrl,
     this.termsVersion,
     this.twoFactorEnabled = false,
@@ -56,6 +66,11 @@ class AuthState {
     required UserRole role,
     String? phone,
     String? city,
+    String? category,
+    String? subcategory,
+    String? bio,
+    double? latitude,
+    double? longitude,
     String? avatarUrl,
     String? termsVersion,
     bool twoFactorEnabled = false,
@@ -67,6 +82,11 @@ class AuthState {
     role: role,
     phone: phone,
     city: city,
+    category: category,
+    subcategory: subcategory,
+    bio: bio,
+    latitude: latitude,
+    longitude: longitude,
     avatarUrl: avatarUrl,
     termsVersion: termsVersion,
     twoFactorEnabled: twoFactorEnabled,
@@ -80,6 +100,11 @@ class AuthState {
     UserRole? role,
     String? phone,
     String? city,
+    String? category,
+    String? subcategory,
+    String? bio,
+    double? latitude,
+    double? longitude,
     String? avatarUrl,
     String? termsVersion,
     bool? twoFactorEnabled,
@@ -94,6 +119,11 @@ class AuthState {
       role: role ?? this.role,
       phone: phone ?? this.phone,
       city: city ?? this.city,
+      category: category ?? this.category,
+      subcategory: subcategory ?? this.subcategory,
+      bio: bio ?? this.bio,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       termsVersion: termsVersion ?? this.termsVersion,
       twoFactorEnabled: twoFactorEnabled ?? this.twoFactorEnabled,
@@ -112,6 +142,11 @@ class AuthState {
     'role': role?.name,
     'phone': phone,
     'city': city,
+    'category': category,
+    'subcategory': subcategory,
+    'bio': bio,
+    'latitude': latitude,
+    'longitude': longitude,
     'avatarUrl': avatarUrl,
     'termsVersion': termsVersion,
     'twoFactorEnabled': twoFactorEnabled,
@@ -133,6 +168,11 @@ class AuthState {
             ),
       phone: json['phone'] as String?,
       city: json['city'] as String?,
+      category: json['category'] as String?,
+      subcategory: json['subcategory'] as String?,
+      bio: json['bio'] as String?,
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
       avatarUrl: json['avatarUrl'] as String?,
       termsVersion: json['termsVersion'] as String?,
       twoFactorEnabled: json['twoFactorEnabled'] as bool? ?? false,

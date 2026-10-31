@@ -278,6 +278,22 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             ),
             const SizedBox(height: 24),
             const Text(
+              'Información legal',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Card(
+              color: surface,
+              margin: EdgeInsets.zero,
+              child: ListTile(
+                leading: const Icon(Icons.cookie_outlined),
+                title: const Text('Política de cookies'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/cookies'),
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
               'Insignias de Confianza',
               style: TextStyle(fontWeight: FontWeight.w600),
             ),

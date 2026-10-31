@@ -1,12 +1,19 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/billing_repository.dart';
+import '../domain/billable_job.dart';
 import '../domain/charge.dart';
 
-/// Repositorio único de cobros (mantiene el estado en memoria).
+/// Repositorio de cobros persistentes; usa datos demo solo sin Supabase.
 final billingRepositoryProvider = Provider<BillingRepository>(
   (ref) => BillingRepository(),
 );
+
+final billableJobsProvider = FutureProvider.autoDispose<List<BillableJob>>((
+  ref,
+) async {
+  return ref.read(billingRepositoryProvider).listBillableJobs();
+});
 
 /// Lista de solicitudes de cobro.
 final chargesListProvider = FutureProvider.autoDispose<List<Charge>>((

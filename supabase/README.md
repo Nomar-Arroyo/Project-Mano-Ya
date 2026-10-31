@@ -16,8 +16,11 @@ proyecto `waxypsqomsljcljdqwra`.
 | `migrations/20261025000000_backend_security_and_booking.sql` | Protección de datos, catálogo, citas, cobros, reportes, Storage y cuota de IA. |
 | `migrations/20261029000000_add_422_mobile_prefix.sql` | Acepta el prefijo móvil venezolano `422` al normalizar teléfonos. |
 | `migrations/20261029000100_terms_acceptances.sql` | Guarda las aceptaciones del acuerdo en un registro de auditoría de solo lectura para el usuario. |
+| `migrations/20261031000000_worker_profile_details.sql` | Añade especialidad y coordenadas aproximadas al perfil privado del trabajador. |
+| `migrations/20261031000100_persist_job_charges.sql` | Persiste cobros asociados a trabajos y valida notificación/confirmación atómica de cuotas. |
 | `functions/accept-terms/index.ts` | Valida la sesión y guarda versión, hora, IP disponible e identificador del usuario al aceptar. |
-| `functions/recommend-workers/index.ts` | Edge Function opcional para clasificar solicitudes con Ollama y consultar trabajadores reales. |
+| `functions/recommend-workers/index.ts` | Clasifica solicitudes con Ollama y ordena trabajadores por disponibilidad y distancia calculada desde coordenadas. |
+| `functions/send-worker-contact-card/index.ts` | Envía por Resend la ficha privada del trabajador al cliente autenticado que lo contacta. |
 
 ## Cómo aplicarlo
 
@@ -40,9 +43,9 @@ normalización para admitir los móviles con prefijo `422`. Para que el registro
 los acepte en el proyecto remoto, aplica las migraciones pendientes con
 `supabase db push` desde una CLI autenticada y enlazada al proyecto.
 
-La aplicación exige aceptar la versión vigente de los términos para registrarse
-o iniciar sesión, incluyendo Google. Para activar el registro auditable en el
-backend, aplica la migración y despliega la función:
+La aplicación exige aceptar los términos al crear una cuenta. El inicio de
+sesión no vuelve a solicitar esa aceptación. Para activar el registro auditable
+en el backend, aplica la migración y despliega la función:
 
 ```bash
 supabase db push
@@ -50,11 +53,9 @@ supabase functions deploy accept-terms
 ```
 
 La función obtiene el `user_id` y la hora del servidor; guarda la IP solo si el
-proxy entrega ese dato. Conserva un registro por usuario y versión; los usuarios
-autenticados solo pueden leer sus propios registros y las filas no se pueden
-modificar ni borrar mediante las operaciones normales de la base de datos. El
-acceso a cuentas existentes también requiere marcar la casilla de la versión
-vigente.
+proxy entrega ese dato. Conserva un registro por usuario y versión; los usuarios autenticados solo
+pueden leer sus propios registros y las filas no se pueden modificar ni borrar
+mediante las operaciones normales de la base de datos.
 
 ## Qué incluye el esquema
 
@@ -77,8 +78,9 @@ vigente.
 - Los teléfonos aceptados al crear o actualizar perfiles se normalizan a
   E.164 (`+584...`) y se validan como móviles venezolanos.
 - Los trabajos y cobros validan en PostgreSQL quién puede crearlos o avanzar
-  sus estados. Las reseñas se limitan a un trabajo completado y una reseña por
-  trabajo.
+  sus estados. Los cobros se crean desde trabajos asignados al trabajador y
+  solo los RPC autorizados pueden crear, notificar o confirmar cuotas. Las
+  reseñas se limitan a un trabajo completado y una reseña por trabajo.
 - `app_settings` está bloqueada para `anon` y `authenticated`; el secreto del
   webhook solo lo usa el trigger de servidor.
 - Los buckets `avatars` y `portfolios` son públicos para lectura. Las escrituras
@@ -87,6 +89,9 @@ vigente.
   publicar coordenadas precisas.
 - Los perfiles sintéticos de la migración de catálogo están rotulados como demo,
   no tienen teléfono ni reseñas y no se recomiendan como proveedores reales.
+- Los perfiles nuevos de trabajadores deben incluir oficio, especialidad y una
+  zona seleccionada con coordenadas. El catálogo no usa datos sintéticos si una
+  consulta real a Supabase falla.
 - No se ejecutó ninguna migración contra una base remota desde este cambio.
 
 ### Asistente con Ollama (opcional)
@@ -104,14 +109,41 @@ supabase functions deploy recommend-workers
 ```
 
 La función requiere una sesión autenticada, limita las solicitudes a 20 por
-usuario por hora y usa Ollama solo para interpretar la categoría. Los
-trabajadores devueltos se consultan desde `workers` con las políticas RLS del
-usuario; no se envían coordenadas precisas al modelo ni se generan perfiles,
-precios, distancias o reseñas.
+usuario por hora y usa Ollama solo para interpretar la categoría. El cliente
+debe seleccionar una zona; el servidor calcula distancias con coordenadas de
+trabajadores y prioriza disponibilidad. Las coordenadas no se envían a Ollama.
 
 La migración crea el RPC de cuota `consume_ai_recommendation_quota`. Aplica la
 migración antes de desplegar la función. Si Ollama no está configurado, la
 función responde `503`; no simula recomendaciones.
+
+### Ficha del trabajador por correo
+
+La función `send-worker-contact-card` solo permite solicitudes autenticadas de
+cuentas cliente. Valida la sesión antes de leer los datos privados de cobro y
+envía la ficha al correo de esa misma cuenta. Para activarla, configura en
+Supabase Edge Function Secrets `RESEND_API_KEY`, `RESEND_FROM_EMAIL`,
+`APP_ORIGIN` y `WEB_APP_URL`, y despliega:
+
+```bash
+supabase functions deploy send-worker-contact-card
+```
+
+`RESEND_FROM_EMAIL` debe pertenecer a un dominio verificado en Resend.
+`ANDROID_APK_URL` es opcional: si hay una descarga Android pública por HTTPS,
+la función la incluirá junto al enlace web.
+`SUPABASE_SERVICE_ROLE_KEY` y `SUPABASE_ANON_KEY` se proporcionan al runtime de
+Supabase; no los incluyas en Flutter ni en el repositorio. Si el envío no está
+configurado o falla, la app informa el error y aun así permite abrir WhatsApp.
+
+### Cobros persistentes
+
+El trabajador crea el cobro desde un trabajo propio aceptado, en curso o
+completado. La base de datos deriva el cliente y su correo del trabajo/cuenta;
+no confía en un nombre o destinatario escrito en el formulario. La creación y
+cada transición de pago se ejecutan mediante RPC transaccionales que validan el
+rol del usuario y procesan una cuota a la vez. Aplica la migración nueva antes
+de usar estos flujos en producción.
 
 ### MFA y OAuth
 

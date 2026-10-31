@@ -150,6 +150,13 @@ class WorkerProfile {
   /// Oficio principal (categoría del catálogo).
   final String category;
 
+  /// Especialidad dentro de la categoría principal.
+  final String subcategory;
+
+  /// Coordenadas aproximadas de la zona de trabajo.
+  final double? latitude;
+  final double? longitude;
+
   /// Fotografías del portafolio express.
   final List<PortfolioItem> portfolio;
 
@@ -176,6 +183,9 @@ class WorkerProfile {
     this.avatarUrl,
     this.bio = '',
     this.category = '',
+    this.subcategory = '',
+    this.latitude,
+    this.longitude,
     this.portfolio = const [],
     this.payout = PayoutInfo.empty,
     this.availableToday = true,
@@ -199,6 +209,9 @@ class WorkerProfile {
     String? avatarUrl,
     String? bio,
     String? category,
+    String? subcategory,
+    double? latitude,
+    double? longitude,
     List<PortfolioItem>? portfolio,
     PayoutInfo? payout,
     bool? availableToday,
@@ -214,6 +227,9 @@ class WorkerProfile {
       avatarUrl: avatarUrl ?? this.avatarUrl,
       bio: bio ?? this.bio,
       category: category ?? this.category,
+      subcategory: subcategory ?? this.subcategory,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
       portfolio: portfolio ?? this.portfolio,
       payout: payout ?? this.payout,
       availableToday: availableToday ?? this.availableToday,
@@ -232,6 +248,9 @@ class WorkerProfile {
     'avatar_url': avatarUrl,
     'bio': bio,
     'category': category,
+    'subcategory': subcategory,
+    'latitude': latitude,
+    'longitude': longitude,
     'available_today': availableToday,
     ...payout.toJson(),
   };
@@ -246,6 +265,9 @@ class WorkerProfile {
       avatarUrl: json['avatar_url']?.toString(),
       bio: json['bio']?.toString() ?? '',
       category: json['category']?.toString() ?? '',
+      subcategory: json['subcategory']?.toString() ?? '',
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
       availableToday: json['available_today'] as bool? ?? true,
       identityVerified: json['identity_verified'] as bool? ?? false,
       rating: (json['rating'] as num?)?.toDouble() ?? 0,

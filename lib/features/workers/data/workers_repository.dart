@@ -11,9 +11,9 @@ import '../domain/worker.dart';
 ///    `status` solo admite 'available' o 'busy'.
 /// 2. **Mock** (respaldo): mantiene el catálogo de ejemplo del MVP.
 ///
-/// Si la consulta a Supabase falla (tabla inexistente, permisos o red) el
-/// repositorio cae automáticamente en el modo mock para no romper la
-/// experiencia del usuario.
+/// Los datos de ejemplo solo se utilizan cuando Supabase no está configurado.
+/// Los errores del backend se propagan para no mostrar perfiles ficticios como
+/// si fueran resultados actuales.
 class WorkersRepository {
   /// Tabla con la ficha pública de cada trabajador.
   static const String workersTable = 'workers';
@@ -31,17 +31,13 @@ class WorkersRepository {
     double? originLng,
   }) async {
     if (_hasBackend) {
-      try {
-        return await _listFromSupabase(
-          category: category,
-          city: city,
-          onlyAvailable: onlyAvailable,
-          originLat: originLat,
-          originLng: originLng,
-        );
-      } catch (_) {
-        // Sin tabla o sin permisos: se usa el catálogo de ejemplo.
-      }
+      return _listFromSupabase(
+        category: category,
+        city: city,
+        onlyAvailable: onlyAvailable,
+        originLat: originLat,
+        originLng: originLng,
+      );
     }
     return _listMock(
       category: category,
@@ -55,16 +51,12 @@ class WorkersRepository {
   /// Obtiene un trabajador por su id (para la pantalla de detalle).
   Future<Worker?> getById(String id) async {
     if (_hasBackend) {
-      try {
-        final row = await SupabaseService.client!
-            .from(workersTable)
-            .select()
-            .eq('id', id)
-            .maybeSingle();
-        return row == null ? null : _workerFromRow(row);
-      } catch (_) {
-        // Sin tabla o id no válido: se busca en el catálogo de ejemplo.
-      }
+      final row = await SupabaseService.client!
+          .from(workersTable)
+          .select()
+          .eq('id', id)
+          .maybeSingle();
+      return row == null ? null : _workerFromRow(row);
     }
     return _getMockById(id);
   }
@@ -75,8 +67,8 @@ class WorkersRepository {
   /// `profile_id` se actualiza; si no existe se inserta una nueva. Así el
   /// trabajador recién registrado aparece en el catálogo de oficios.
   ///
-  /// Devuelve el id de la fila creada o `null` cuando Supabase no está
-  /// configurado o la escritura no fue posible.
+  /// Devuelve el id de la fila creada; si Supabase no está configurado,
+  /// devuelve `null`. Los errores de escritura se propagan.
   Future<String?> upsertMyWorkerProfile({
     required String profileId,
     required String name,
@@ -88,8 +80,6 @@ class WorkersRepository {
     String? avatarUrl,
     double? latitude,
     double? longitude,
-    bool identityVerified = false,
-    bool workGuaranteed = true,
     String status = 'available',
   }) async {
     final client = SupabaseService.client;
@@ -104,49 +94,21 @@ class WorkersRepository {
       'phone': phone,
       'bio': bio,
       'avatar_url': avatarUrl,
-      'identity_verified': identityVerified,
-      'work_guaranteed': workGuaranteed,
       'status': status,
       'latitude': latitude,
       'longitude': longitude,
     };
 
-    try {
-      final rows = await client
-          .from(workersTable)
-          .upsert(payload, onConflict: 'profile_id')
-          .select();
-      if (rows.isNotEmpty) {
-        return rows.first['id']?.toString();
-      }
-    } catch (_) {
-      // La columna profile_id puede no tener restricción única todavía:
-      // se hace el upsert manual (buscar la ficha y actualizarla o crearla).
+    final rows = await client
+        .from(workersTable)
+        .upsert(payload, onConflict: 'profile_id')
+        .select('id');
+    if (rows.isEmpty || rows.first['id'] == null) {
+      throw StateError(
+        'Supabase no devolvió la ficha guardada del trabajador.',
+      );
     }
-
-    try {
-      final existing = await client
-          .from(workersTable)
-          .select('id')
-          .eq('profile_id', profileId)
-          .maybeSingle();
-      if (existing != null) {
-        await client
-            .from(workersTable)
-            .update(payload)
-            .eq('id', existing['id']);
-        return existing['id']?.toString();
-      }
-      final inserted = await client
-          .from(workersTable)
-          .insert(payload)
-          .select()
-          .single();
-      return inserted['id']?.toString();
-    } catch (_) {
-      // Sin permisos o tabla inexistente: la ficha se podrá crear después.
-      return null;
-    }
+    return rows.first['id'].toString();
   }
 
   /// Consulta el catálogo de trabajadores en Supabase.
@@ -200,7 +162,7 @@ class WorkersRepository {
       status: row['status'] == 'busy'
           ? WorkerStatus.busy
           : WorkerStatus.available,
-      availableToday: true,
+      availableToday: row['status'] != 'busy',
       rating: (row['rating'] as num?)?.toDouble() ?? 0,
       reviewsCount: (row['reviews_count'] as num?)?.toInt() ?? 0,
       avatarUrl: row['avatar_url']?.toString(),

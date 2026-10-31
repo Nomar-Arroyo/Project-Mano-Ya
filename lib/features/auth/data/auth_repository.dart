@@ -41,10 +41,6 @@ class AuthRepository {
     final client = SupabaseService.client;
     final user = client?.auth.currentUser;
     if (user == null) return const AuthState.unauthenticated();
-    if (user.userMetadata?['terms_version'] != TermsPolicy.version) {
-      await client!.auth.signOut();
-      return const AuthState.unauthenticated();
-    }
     if (user.emailConfirmedAt == null) {
       await client!.auth.signOut();
       return const AuthState.unauthenticated();
@@ -57,13 +53,7 @@ class AuthRepository {
     String email,
     String password, {
     UserRole role = UserRole.client,
-    required bool acceptedTerms,
   }) async {
-    if (!acceptedTerms) {
-      throw const AuthException(
-        'Debes aceptar los términos y condiciones para iniciar sesión.',
-      );
-    }
     final client = SupabaseService.client;
     if (client == null) {
       throw const AuthException(
@@ -86,8 +76,7 @@ class AuthRepository {
           'Confirma tu correo electrónico antes de iniciar sesión.',
         );
       }
-      final acceptedUser = await _recordTermsAcceptance(client);
-      _state = await _stateFromUser(acceptedUser, fallbackRole: role);
+      _state = await _stateFromUser(user, fallbackRole: role);
       return _state;
     } on supabase.AuthException catch (error) {
       if (error.code == 'invalid_credentials' ||
@@ -115,6 +104,11 @@ class AuthRepository {
     required bool acceptedTerms,
     String? phone,
     String? city,
+    String? category,
+    String? subcategory,
+    String? bio,
+    double? latitude,
+    double? longitude,
   }) async {
     if (!acceptedTerms) {
       throw const AuthException(
@@ -132,8 +126,13 @@ class AuthRepository {
             'role': role.name,
             'terms_accepted': true,
             'terms_version': TermsPolicy.version,
-            if (phone != null && phone.isNotEmpty) 'phone': phone,
-            if (city != null && city.isNotEmpty) 'city': city,
+            if (phone?.isNotEmpty == true) 'phone': phone,
+            if (city?.isNotEmpty == true) 'city': city,
+            if (category?.isNotEmpty == true) 'category': category,
+            if (subcategory?.isNotEmpty == true) 'subcategory': subcategory,
+            if (bio?.isNotEmpty == true) 'bio': bio,
+            if (latitude != null) 'latitude': latitude,
+            if (longitude != null) 'longitude': longitude,
           },
         );
         final user = response.user;
@@ -409,8 +408,16 @@ class AuthRepository {
   Future<AuthState> signInWithGoogle({
     required UserRole role,
     required bool acceptedTerms,
+    required bool isRegistration,
+    String? phone,
+    String? city,
+    String? category,
+    String? subcategory,
+    String? bio,
+    double? latitude,
+    double? longitude,
   }) async {
-    if (!acceptedTerms) {
+    if (isRegistration && !acceptedTerms) {
       throw const AuthException(
         'Debes aceptar los términos y condiciones para continuar.',
       );
@@ -424,7 +431,14 @@ class AuthRepository {
         email: 'usuario.mock@gmail.com',
         displayName: 'Usuario Mock',
         role: role,
-        termsVersion: TermsPolicy.version,
+        phone: phone,
+        city: city,
+        category: category,
+        subcategory: subcategory,
+        bio: bio,
+        latitude: latitude,
+        longitude: longitude,
+        termsVersion: isRegistration ? TermsPolicy.version : null,
       );
       return _state;
     }
@@ -455,6 +469,14 @@ class AuthRepository {
         idToken,
         role: role,
         acceptedTerms: acceptedTerms,
+        isRegistration: isRegistration,
+        phone: phone,
+        city: city,
+        category: category,
+        subcategory: subcategory,
+        bio: bio,
+        latitude: latitude,
+        longitude: longitude,
         displayName: account.displayName,
       );
     } on AuthException {
@@ -473,9 +495,17 @@ class AuthRepository {
     String idToken, {
     required UserRole role,
     required bool acceptedTerms,
+    required bool isRegistration,
+    String? phone,
+    String? city,
+    String? category,
+    String? subcategory,
+    String? bio,
+    double? latitude,
+    double? longitude,
     String? displayName,
   }) async {
-    if (!acceptedTerms) {
+    if (isRegistration && !acceptedTerms) {
       throw const AuthException(
         'Debes aceptar los términos y condiciones para continuar.',
       );
@@ -499,19 +529,49 @@ class AuthRepository {
         throw const AuthException('Supabase no devolvió un usuario válido.');
       }
 
-      // El rol y el nombre se guardan en los metadatos del usuario para que
-      // la app los use en las pantallas de perfil y panel.
-      await client.auth.updateUser(
-        supabase.UserAttributes(
-          data: {
-            'full_name': displayName ?? user.userMetadata?['full_name'],
-            'role': role.name,
-          },
-        ),
-      );
+      final metadata = user.userMetadata ?? const <String, dynamic>{};
+      if (isRegistration ||
+          metadata['role'] != UserRole.client.name &&
+              metadata['role'] != UserRole.worker.name) {
+        await client.auth.updateUser(
+          supabase.UserAttributes(
+            data: {
+              if (displayName != null) 'full_name': displayName,
+              'role': role.name,
+              if (isRegistration && phone?.isNotEmpty == true) 'phone': phone,
+              if (isRegistration && city?.isNotEmpty == true) 'city': city,
+              if (isRegistration && category?.isNotEmpty == true)
+                'category': category,
+              if (isRegistration && subcategory?.isNotEmpty == true)
+                'subcategory': subcategory,
+              if (isRegistration && bio?.isNotEmpty == true) 'bio': bio,
+              if (isRegistration && latitude != null) 'latitude': latitude,
+              if (isRegistration && longitude != null) 'longitude': longitude,
+            },
+          ),
+        );
+      }
 
-      final acceptedUser = await _recordTermsAcceptance(client);
-      _state = await _stateFromUser(acceptedUser, fallbackRole: role);
+      final authenticatedUser = client.auth.currentUser;
+      if (authenticatedUser == null) {
+        throw const AuthException('Supabase no devolvió un usuario válido.');
+      }
+      if (isRegistration) {
+        final acceptedUser = await _recordTermsAcceptance(client);
+        _state = await _stateFromUser(acceptedUser, fallbackRole: role);
+      } else {
+        final acceptedTermsVersion =
+            authenticatedUser.userMetadata?['terms_version'];
+        if (acceptedTermsVersion == null ||
+            authenticatedUser.userMetadata?['terms_accepted'] != true) {
+          await client.auth.signOut();
+          throw const AuthException(
+            'Esta cuenta aún debe aceptar los términos. Regístrate para '
+            'confirmar tu aceptación.',
+          );
+        }
+        _state = await _stateFromUser(authenticatedUser, fallbackRole: role);
+      }
       return _state;
     } on supabase.AuthException catch (error) {
       throw AuthException(error.message);
@@ -751,6 +811,11 @@ class AuthRepository {
       role: role.isNotEmpty ? role.first : fallbackRole,
       phone: metadata['phone'] as String?,
       city: metadata['city'] as String?,
+      category: metadata['category'] as String?,
+      subcategory: metadata['subcategory'] as String?,
+      bio: metadata['bio'] as String?,
+      latitude: (metadata['latitude'] as num?)?.toDouble(),
+      longitude: (metadata['longitude'] as num?)?.toDouble(),
       avatarUrl: metadata['avatar_url'] as String?,
       termsVersion: metadata['terms_version'] as String?,
       twoFactorEnabled: twoFactor,
