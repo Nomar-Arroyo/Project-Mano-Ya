@@ -52,6 +52,7 @@ class WorkerRegistrationService {
     }
 
     final client = SupabaseService.client!;
+    await client.rpc('ensure_current_user_worker_role');
     final profileRows = await client
         .from(profilesTable)
         .update({
